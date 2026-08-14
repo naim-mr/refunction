@@ -15,9 +15,6 @@ module type CONSTRAINT = sig
   type t = { cons : cons; env : env }
   (** Type representing the constraint alongside with its environment. *)
 
-  type linexpr
-  (** Linear constraints type. *)
-
   type dim = var
 
   val init_env : unit -> env
@@ -40,44 +37,66 @@ module type CONSTRAINT = sig
   (** [make_unsat env] returns a non satisfiable constraints over the
       environment [env]. *)
 
-  val linexpr : t -> linexpr
-  (** [linexpr t] linearises the constraint [t]. *)
-
   val is_bot : t -> bool
   (** [is_bot t] tests if [t] is unsat. *)
 
   val compare : t -> t -> int
-  (** [compare t1 t2] compares the two constraints. It returns -1 if c1 < c2; 0
-      if c1 = c2 and 1 if c1 > c2.*)
+  (** [compare t1 t2] is the TOTAL order on constraints: negative if [t1] comes
+      first, 0 if equal, positive otherwise. It is the primitive from which
+      [is_eq] and [is_leq] derive, and it is what keeps decision-tree nodes
+      canonically ordered. *)
 
   val is_eq : t -> t -> bool
-  (** [is_eq t1 t2] tests if two constraints are equals. *)
+  (** [is_eq t1 t2] tests if two constraints are equal: [compare t1 t2 = 0]. *)
 
   val is_leq : t -> t -> bool
-  (** [is_leq t1 t2] tests if t1 implies t2. *)
+  (** [is_leq t1 t2] is the order of {!compare}: [compare t1 t2 <= 0]. It must
+      be total — for every [c], one of [is_leq c (negate c)] and
+      [is_leq (negate c) c] holds, which is what makes a constraint and its
+      negation collapse to the same canonical node. *)
 
   val var : var -> t -> bool
-  (** [var v t] tests if is constrained in t. *)
+  (** [var v t] tests if [v] is constrained in [t]. *)
 
   val similar : t -> t -> bool
-  (** [similar t1 t2] Tests if two constraints are similars e.g. differs only by
-      a constant *)
+  (** [similar t1 t2] tests if two constraints are equal UP TO THEIR CONSTANT
+      term, which is what lets the tree merge two nodes differing only by that
+      constant. Reflexive, symmetric, implied by [is_eq]. *)
 
   val negate : t -> t
-  (** [negate t] returns the negation of t. *)
+  (** [negate t] returns the negation of [t].
+
+      CONTRACT — the negation must be EXACT, not an over-approximation:
+      [t ∧ negate t = ⊥] and [t ∨ negate t = ⊤]. A decision-tree node stores
+      the pair [(c, negate c)] and its two branches are meant to partition the
+      state space; an inexact negation makes the two branches either overlap
+      (unsound joins) or miss states (unsound coverage). [negate (negate t)]
+      must also be [t], up to normalisation.
+
+      This means the constraint domain has to be CLOSED UNDER COMPLEMENT, which
+      is a real restriction on what can be plugged in here:
+      - parity, congruence mod 2: [¬(x ≡ 0 [2])] is [x ≡ 1 [2]] — fine;
+      - congruence mod 3: [¬(x ≡ 0 [3])] is [x ≡ 1 ∨ x ≡ 2] — NOT a single
+        constraint, so such a domain cannot be used as a node constraint as is.
+        It needs either a disjunctive node type, or to be carried in a product
+        beside a complement-closed domain.
+
+      The type system cannot enforce any of this. The law is checked instead by
+      the domain test harness (see domains/todo.md §4.1). *)
 
   val expand : t -> t * t
   (** [expand t] transforms equalities in pairs of supeq and infeq. *)
 
-  val evolve_cns : t -> t * t
-  val evolve : t -> t -> t
   val print : Format.formatter -> t -> unit
 end
 
 type lincons_env = { vars : var list; ap_env : Environment.t }
 
-module type AP_CONSTRAINT =
-  CONSTRAINT
-    with type env = lincons_env
-     and type cons = Lincons1.t
-     and type linexpr = Linexpr1.t
+module type AP_CONSTRAINT = sig
+  include CONSTRAINT with type env = lincons_env and type cons = Lincons1.t
+
+  val linexpr : t -> Linexpr1.t
+  (** [linexpr t] returns the linear expression of [t]. APRON-specific, hence
+      declared here rather than in {!CONSTRAINT}: a congruence or a boolean
+      predicate has no meaningful linearisation. *)
+end

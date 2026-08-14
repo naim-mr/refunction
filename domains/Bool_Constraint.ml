@@ -21,7 +21,6 @@ module Bool_Constraint : CONSTRAINT = struct
   type cons = bool
   type env = unit
   type t = { cons : cons; env : env }
-  type linexpr = unit
   type dim = var
 
   let init_env () = ()
@@ -30,7 +29,6 @@ module Bool_Constraint : CONSTRAINT = struct
   let add_dim_to_env env _ = env
   let remove_dim_of_env env _ = env
   let make_unsat env = { cons = false; env }
-  let linexpr _ = ()
   let is_bot t = not t.cons
   let compare t1 t2 = Bool.compare t1.cons t2.cons
   let is_eq t1 t2 = t1.cons = t2.cons
@@ -42,8 +40,6 @@ module Bool_Constraint : CONSTRAINT = struct
   let similar t1 t2 = t1.cons = t2.cons
   let negate t = { t with cons = not t.cons }
   let expand t = (t, t)
-  let evolve_cns t = (t, t)
-  let evolve t _ = t
   let print fmt t = Format.fprintf fmt "%s" (if t.cons then "true" else "false")
 end
 
