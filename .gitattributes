@@ -1,0 +1,3 @@
+# Benchmarks analysed by the tool, not source of the tool: keep them out of
+# GitHub's language statistics.
+tests/** linguist-vendored
