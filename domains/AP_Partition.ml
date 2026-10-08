@@ -444,11 +444,10 @@ struct
           of_apron_t env b
         in
         let b1 = f manager b (x, e) in
-        if
-          !Config.analysis = "atl"
-          && !Config.domain = "polyhedra"
-          && controllable
-        then
+        (* A-controlled assignment on polyhedra: dedicated treatment of the
+           redundant constraints. [controllable] is only set by the ATL
+           iterator. *)
+        if controllable && N.kind = Polyhedra then
           let env = env b in
           let ap_env = ap_env env in
           let p = to_apron_t b1 in
@@ -611,7 +610,7 @@ struct
       | _ -> raise (Invalid_argument "Unsupported float")
     in
     let b1 = f manager b (e, t, ext) in
-    if !Config.resilience && !Config.domain = "polyhedra" && false then
+    if !Config.resilience && N.kind = Polyhedra && false then
       let env = env b in
       let ap_env = ap_env env in
       let p = to_apron_t b1 in
@@ -650,6 +649,7 @@ end
 module AP_Box : AP_NUMERICAL = struct
   type lib = Box.t
 
+  let kind = Boxes
   let is_representable = Typed_syntax.expr_is_univariate
   let manager = Box.manager_alloc ()
   let supports_underapproximation = false
@@ -658,6 +658,7 @@ end
 module AP_Oct : AP_NUMERICAL = struct
   type lib = Oct.t
 
+  let kind = Octagons
   let is_representable = Typed_syntax.expr_is_octagonal
   let manager = Oct.manager_alloc ()
   let supports_underapproximation = false
@@ -665,6 +666,9 @@ end
 
 module AP_Poly : AP_NUMERICAL = struct
   type lib = Polka.loose Polka.t (* ou Pkgrid.loose Pkgrid.t selon strictness *)
+
+  let kind = Polyhedra
+
   type t = lib Abstract1.t
 
   let is_representable = Typed_syntax.expr_is_linear

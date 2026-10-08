@@ -51,10 +51,23 @@ l. 2035 est dans `vulnerable`, commenté) et `AP_OrdinalValued (F : FUNCTION)`.
       - ~~supprimer `AP_NUMERIC` ; `AP_Affine` prend `B : AP_PARTITION`~~
         (fait le 08/10/2026 — ne pas confondre avec `AP_NUMERICAL`, le
         paramètre `N` Box/Oct/Poly, qui reste) ;
-      - ~~`AP_Affine` : un `Fun` vit sur `ap_env` sans `#` ; chaque opération
-        étend vers `ap_env_ext` puis `restrict` le résultat~~ (fait le
-        08/10/2026). Régression complète verte le 09/10/2026 (103 ok,
-        `function-diff` sans régression) ;
+      - `AP_Affine`, convention de `#` : **abandon** (09/10/2026) de « un `Fun`
+        vit sur `ap_env` sans `#` » (commit S1, tag `v0.4`). Retirer `#`
+        demandait de recopier les coefficients d'une expression APRON dans une
+        autre (`restrict`), et une valeur lue par `get_cst` ne survit pas à
+        l'expression source (APRON 0.9.15 / mlgmpidl 1.3.0) : plantage selon le
+        GC (`tacas2013d.c`, `unknown scalar discriminant`), passé par chance à
+        la régression. Retour à la convention d'avant : `#` reste dans
+        l'environnement des `Fun`, coefficient remis à 0. Gardé de S1 :
+        `ap_env_ext`, `add_dim_to_env` qui étend vers `ap_env_ext`.
+        `remove_dim_of_env` ne retire pas la variable de l'expression (jamais
+        appelé ; gardé pour plus tard) ;
+      - Plantages préexistants avec un petit tas (`OCAMLRUNPARAM=s=4k`) :
+        segfault sur `example2c/2d/2e`, `squeez_interval_2d/2e` (déjà avant S1,
+        `b3bae7f2`). Même famille probable : usage d'APRON non sûr vis-à-vis du
+        GC. À traquer ;
+      - ATL n'a aucune référence dans `logs/` : `--cover logs` n'en lance aucun
+        test, donc la régression ne couvre pas ATL. Ajouter les références ;
       - `AP_Affine` : à partir d'une contrainte `a·x + k·# + c ≥ 0`, on lit `f`
         en mettant juste le coefficient de `#` à 0, ce qui suppose `k = -1`.
         Si les polyèdres renvoient `k ≠ -1`, le rang est faux, sans erreur.
@@ -64,7 +77,9 @@ l. 2035 est dans `vulnerable`, commenté) et `AP_OrdinalValued (F : FUNCTION)`.
         restent à ±1 ; le risque concerne surtout les polyèdres. Correction :
         une fonction `of_graph` (`k < 0` → `f = g/(-k)` ; `k > 0` → écarter)
         appelée aux 5 sorties (`join` ×2, `learn`, `widen`, `extend`) à la
-        place de `restrict` seul (cf. code commenté dans `extend_ranking`) ;
+        place de la remise à 0 du coefficient de `#` (cf. code commenté dans
+        `extend_ranking`). Attention : la division doit se faire sans recopier
+        de coefficients lus vers une autre expression (cf. ci-dessus) ;
       - ~~supprimer `PARTITION.constraints`~~ (fait le 08/10/2026 : redondant
         avec `conjunction`, l'accès générique ; `AP_Partition.ap_constraints`
         en dérive) ;

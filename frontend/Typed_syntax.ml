@@ -485,8 +485,7 @@ let rec unit_vars e =
     | Some l1, Some l2 ->
         let l2 = List.map (fun (v, k) -> (v, s * k)) l2 in
         let mem (v, _) = List.exists (fun (w, _) -> w.var_id = v.var_id) l1 in
-        if List.exists mem l2 then None
-        else Some (l1 @ l2)
+        if List.exists mem l2 then None else Some (l1 @ l2)
     | _ -> None
   in
   match e with

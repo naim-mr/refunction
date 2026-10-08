@@ -301,59 +301,41 @@ let run_analysis analysis_function program () =
     Format.fprintf !fmt "\nThe Analysis Timed Out!\n";
     Format.fprintf !fmt "\nDone.\n"
 
-let termination_iterator_new () : (module Semantics.SEMANTIC) =
-  let open Domains in
-  let module S =
-    (val match !domain with
-         | "boxes" ->
-             if !ordinals then (module TerminationIterator (Decision_Tree.TSOB))
-             else (module TerminationIterator (Decision_Tree.TSAB))
-         | "octagons" ->
-             if !ordinals then (module TerminationIterator (Decision_Tree.TSOO))
-             else (module TerminationIterator (Decision_Tree.TSAO))
-         | "polyhedra" ->
-             if !ordinals then (module TerminationIterator (Decision_Tree.TSOP))
-             else (module TerminationIterator (Decision_Tree.TSAP))
-         | _ -> raise (Invalid_argument "Unknown Abstract Domain")
-        : Semantics.SEMANTIC)
+(** The ranking domain selected by [-domain] and [-ordinals]. Built here, after
+    the command line is parsed, so that [ordmax] is given to the domain as a
+    functor argument instead of being read from [Config] by the domain. *)
+let ranking_domain () : (module Sig.Ranking.RANKING_FUNCTION) =
+  let affine : (module Sig.Ranking.FUNCTION) =
+    match !domain with
+    | "boxes" -> (module AP_Affines.AB)
+    | "octagons" -> (module AP_Affines.AO)
+    | "polyhedra" -> (module AP_Affines.AP)
+    | _ -> raise (Invalid_argument "Unknown Abstract Domain")
   in
-  (module S)
+  let module F = (val affine) in
+  let leaf : (module Sig.Ranking.FUNCTION) =
+    if !ordinals then
+      (module AP_Ordinals.AP_OrdinalValued
+                (struct
+                  let ordmax = !Config.ordmax
+                end)
+                (F))
+    else (module F)
+  in
+  let module L = (val leaf) in
+  (module Decision_Tree.Decision_Tree (L))
+
+let termination_iterator_new () : (module Semantics.SEMANTIC) =
+  let module D = (val ranking_domain ()) in
+  (module TerminationIterator (D))
 
 let ctl_iterator_new () : (module Semantics.SEMANTIC) =
-  let open Sig in
-  let module S =
-    (val match !domain with
-         | "boxes" ->
-             if !ordinals then (module CTLIterator (Decision_Tree.TSOB))
-             else (module CTLIterator (Decision_Tree.TSAB))
-         | "octagons" ->
-             if !ordinals then (module CTLIterator (Decision_Tree.TSOO))
-             else (module CTLIterator (Decision_Tree.TSAO))
-         | "polyhedra" ->
-             if !ordinals then (module CTLIterator (Decision_Tree.TSOP))
-             else (module CTLIterator (Decision_Tree.TSAP))
-         | _ -> raise (Invalid_argument "Unknown Abstract Domain")
-        : Semantics.SEMANTIC)
-  in
-  (module S)
+  let module D = (val ranking_domain ()) in
+  (module CTLIterator (D))
 
 let atl_iterator_new () : (module Semantics.SEMANTIC) =
-  let open Domains in
-  let module S =
-    (val match !domain with
-         | "boxes" ->
-             if !ordinals then (module ATLIterator (Decision_Tree.TSOB))
-             else (module ATLIterator (Decision_Tree.TSAB))
-         | "octagons" ->
-             if !ordinals then (module ATLIterator (Decision_Tree.TSOO))
-             else (module ATLIterator (Decision_Tree.TSAO))
-         | "polyhedra" ->
-             if !ordinals then (module ATLIterator (Decision_Tree.TSOP))
-             else (module ATLIterator (Decision_Tree.TSAP))
-         | _ -> raise (Invalid_argument "Unknown Abstract Domain")
-        : Semantics.SEMANTIC)
-  in
-  (module S)
+  let module D = (val ranking_domain ()) in
+  (module ATLIterator (D))
 
 let run_termination_new program =
   let module S = (val termination_iterator_new ()) in

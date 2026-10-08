@@ -62,10 +62,18 @@ module type PARTITION = sig
   (** [ubwd_assign t exp] Under-approximating backward filter [exp != 0] on [t]*)
 end
 
+(** The APRON numerical domain behind an [AP_NUMERICAL] instance. *)
+type numerical = Boxes | Octagons | Polyhedra
+
 (** [module type AP_NUMERICAL] include an apron domain type and a manager for it
 *)
 module type AP_NUMERICAL = sig
   type lib
+
+  val kind : numerical
+  (** [kind] which APRON domain this instance is, for the treatments that are
+      specific to one of them. *)
+
   val manager : lib Manager.t
   val supports_underapproximation : bool
 

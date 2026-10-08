@@ -2064,8 +2064,5 @@ module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION = struct
 end
 
 module TSAB = Decision_Tree (AB)
-module TSOB = Decision_Tree (OB)
 module TSAO = Decision_Tree (AO)
-module TSOO = Decision_Tree (OO)
 module TSAP = Decision_Tree (AP)
-module TSOP = Decision_Tree (OP)

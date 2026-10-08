@@ -7,7 +7,14 @@ open Apron
 open AP_Affines
 open Sig.Ranking
 
-module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
+(** [P.ordmax] bounds the ordinal values, i.e. the number of coefficients kept
+    before going to top (option [-ordinals n]): it defines the domain itself, as
+    it is enforced by [join], [plus], [learn], [widen] and [bwd_assign]. *)
+module AP_OrdinalValued
+    (P : sig
+      val ordmax : int
+    end)
+    (F : FUNCTION) : FUNCTION = struct
   module B = F.B
 
   type rank = F.rank
@@ -102,7 +109,7 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
     let f = F.join ~controllable k b f1 f2 in
     if F.defined f then
       let ff = aux 0 ff1 ff2 in
-      if List.length ff > !Config.ordmax then (F.top env, []) else (f, ff)
+      if List.length ff > P.ordmax then (F.top env, []) else (f, ff)
     else if
       (* f = Bot OR f = Top *)
       F.is_bot f
@@ -112,7 +119,7 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
       F.defined f1 && F.defined f2
     then
       let ff = aux 1 ff1 ff2 in
-      if List.length ff > !Config.ordmax then (f, []) else (F.zero env, ff)
+      if List.length ff > P.ordmax then (f, []) else (F.zero env, ff)
     else (f, [])
 
   let plus b (f1, ff1) (f2, ff2) =
@@ -149,7 +156,7 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
     let f = F.plus b f1 f2 in
     if F.defined f then
       let ff = aux 0 ff1 ff2 in
-      if List.length ff > !Config.ordmax then (F.top env, []) else (f, ff)
+      if List.length ff > P.ordmax then (F.top env, []) else (f, ff)
     else if
       (* f = Bot OR f = Top *)
       F.is_bot f
@@ -159,7 +166,7 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
       F.defined f1 && F.defined f2
     then
       let ff = aux 1 ff1 ff2 in
-      if List.length ff > !Config.ordmax then (f, []) else (F.zero env, ff)
+      if List.length ff > P.ordmax then (f, []) else (F.zero env, ff)
     else (f, [])
 
   let learn b (f1, ff1) (f2, ff2) =
@@ -196,7 +203,7 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
     let f = F.learn b f1 f2 in
     if F.defined f then
       let ff = aux 0 ff1 ff2 in
-      if List.length ff > !Config.ordmax then (F.top env, []) else (f, ff)
+      if List.length ff > P.ordmax then (F.top env, []) else (f, ff)
     else if
       (* f = Bot OR f = Top *)
       F.is_bot f
@@ -206,7 +213,7 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
       F.defined f1 && F.defined f2
     then
       let ff = aux 1 ff1 ff2 in
-      if List.length ff > !Config.ordmax then (f, []) else (F.zero env, ff)
+      if List.length ff > P.ordmax then (f, []) else (F.zero env, ff)
     else (f, [])
 
   let widen ?(jokers = 0) b (f1, ff1) (f2, ff2) =
@@ -241,16 +248,16 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
           if F.is_top z then F.zero env :: aux (i - 1) xs (succ ys)
           else z :: aux (i - 1) xs ys
     in
-    let i = !Config.ordmax + 1 - jokers in
+    let i = P.ordmax + 1 - jokers in
     if F.is_top f1 || F.is_top f2 then (F.widen b f1 f2, [])
     else
       let f = if i > 0 then F.widen b f1 f2 else f2 in
       if F.is_top f then
         let ff = aux (i - 1) ff1 (succ ff2) in
-        if List.length ff > !Config.ordmax then top env else (F.zero env, ff)
+        if List.length ff > P.ordmax then top env else (F.zero env, ff)
       else if F.defined f then
         let ff = aux (i - 1) ff1 ff2 in
-        if List.length ff > !Config.ordmax then top env else (f, ff)
+        if List.length ff > P.ordmax then top env else (f, ff)
       else (f, [])
 
   let extend b1 b2 (f1, ff1) (f2, ff2) =
@@ -293,14 +300,14 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
       let f = F.bwd_assign f e in
       if F.defined f then
         let ff = aux 0 ff in
-        if List.length ff > !Config.ordmax then (F.top env, []) else (f, ff)
+        if List.length ff > P.ordmax then (F.top env, []) else (f, ff)
       else if
         (* f = Bot OR f = Top *)
         F.is_bot f
       then (f, []) (* f = Bot *)
       else (* f = Top *)
         let ff = aux 1 ff in
-        if List.length ff > !Config.ordmax then (f, []) else (F.zero env, ff)
+        if List.length ff > P.ordmax then (f, []) else (F.zero env, ff)
     else (f, [])
 
   let filter (f, ff) e = (F.filter f e, ff)
@@ -318,7 +325,3 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
     in
     Format.fprintf fmt "%a%a" aux (ff, 1) F.print f
 end
-
-module OB = AP_OrdinalValued (AB)
-module OO = AP_OrdinalValued (AO)
-module OP = AP_OrdinalValued (AP)
