@@ -1,9 +1,10 @@
-int main(){
-    int x = input("rand",(-1),(-1));
-    if ( x < 0){
 
-    }else{
-        while(1){   }
-    }
-    
+void f1() {
+  while(1){};
+}
+
+
+int main(void) {
+  f1();
+  return 0;
 }

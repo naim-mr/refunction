@@ -13,54 +13,73 @@ open Sig
 open Sig.Domain
 open AP_Partition
 
-module AP_Affine
-    (N : AP_NUMERICAL)
-    (B : AP_NUMERIC with type C.env = Constraints.lincons_env) : FUNCTION =
-struct
+module AP_Affine (B : AP_PARTITION) : FUNCTION = struct
   module B = B
+  module N = B.N
 
-  (**)
+  (** [manager]: Apron manager used in the numerical domain [N]*)
+  let manager : N.lib Manager.t = N.manager
 
-  let manager = N.manager
-
+  (** [rank]: [Bot] undefined function, [Top] undefined function due to
+      precision losses, [Fun of Linexpr1.t] Affine function*)
   type rank = Bot | Fun of Linexpr1.t | Top
+
   type env = B.env
   type t = { ranking : rank; env : env }
   type dim = B.dim
 
-  let v = Var.of_string "#"
+  (* Getter and setter functions *)
   let ranking f = f.ranking
   let env f = f.env
   let set_env env f = { f with env }
   let ap_env env = B.ap_env env
   let vars f = (env f).vars
 
-  (**)
-
   let reinit f =
     match f.ranking with Top -> { ranking = Bot; env = env f } | _ -> f
 
   let bot e = { ranking = Bot; env = e }
 
-  let zero e =
-    {
-      ranking = Fun (Linexpr1.make (Environment.add (ap_env e) [| v |] [||]));
-      env = e;
-    }
+  (** [extra_dim]: Apron variable used to extend [env] by one dimension *)
+  let extra_dim = Var.of_string "#"
 
+  (** [ap_env_ext env]: APRON environment of [env] extended with [extra_dim]. A
+      [Fun] expression is defined on [ap_env env]; the operations extend it to
+      [ap_env_ext env] to encode its graph ([#] vs f) as a polyhedron, and
+      [restrict] the result back. *)
+  let ap_env_ext env = Environment.add (ap_env env) [| extra_dim |] [||]
+
+  (** [restrict flin env']: fresh copy of [flin] on [env'] (a subset of its
+      environment), dropping the variables not in [env']. APRON has no removal
+      on [Linexpr1]: changing [flin.env] in place would shift the dimensions. *)
+  let restrict flin env' =
+    let f = Linexpr1.make env' in
+    Linexpr1.iter
+      (fun c x -> if Environment.mem_var env' x then Linexpr1.set_coeff f x c)
+      flin;
+    Linexpr1.set_cst f (Linexpr1.get_cst flin);
+    f
+
+  let zero e = { ranking = Fun (Linexpr1.make (ap_env e)); env = e }
   let top e = { ranking = Top; env = e }
   let init_env () = B.init_env ()
 
   let add_dim_to_env f dim =
     let b = B.bot f.env in
     let env = B.add_dim_to_env b dim |> B.env in
-    { f with env }
+    match f.ranking with
+    | Bot | Top -> { f with env }
+    | Fun flin ->
+        { ranking = Fun (Linexpr1.extend_environment flin (ap_env env)); env }
 
   let remove_dim_of_env f dim =
     let b = B.bot f.env in
     let env = B.remove_dim_of_env b dim |> B.env in
-    { f with env }
+    match f.ranking with
+    | Bot | Top -> { f with env }
+    | Fun flin -> { ranking = Fun (restrict flin (ap_env env)); env }
 
+  (*  Boolean predicates on function *)
   let is_bot f = match f.ranking with Bot -> true | _ -> false
   let defined f = match f.ranking with Fun _ -> true | _ -> false
   let is_top f = match f.ranking with Top -> true | _ -> false
@@ -69,7 +88,7 @@ struct
     (* b = domain of first/second function, f1/f2 = value of first/second function *)
     match (f1.ranking, f2.ranking) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b |> B.ap_env) [| v |] [||] in
+        let env = ap_env_ext (B.env b) in
         (* adding special variable # to environment of b *)
         let l = List.length (B.ap_constraints b) + 1 in
         (* l = |b| + 1 *)
@@ -82,12 +101,13 @@ struct
             i := !i + 1)
           (B.ap_constraints b);
         (* copying constraints from b to a1 and a2 *)
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
-        (* creating copies of f1 and f2 *)
-        Linexpr1.set_coeff f1 v (Coeff.s_of_int (-1));
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
+        (* extending f1 and f2 with # (fresh copies) *)
+        Linexpr1.set_coeff f1 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a1 (l - 1) (Lincons1.make f1 Lincons1.SUPEQ);
         (* adding constraint # <= f1 to a1 *)
-        Linexpr1.set_coeff f2 v (Coeff.s_of_int (-1));
+        Linexpr1.set_coeff f2 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a2 (l - 1) (Lincons1.make f2 Lincons1.SUPEQ);
         (* adding constraint # <= f2 to a2 *)
         let p1 = Abstract1.of_lincons_array manager env a1 in
@@ -102,7 +122,7 @@ struct
     (* b = domain of first/second function, f1/f2 = value of first/second function *)
     match (f1.ranking, f2.ranking) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b |> B.ap_env) [| v |] [||] in
+        let env = ap_env_ext (B.env b) in
         (* adding special variable # to environment of b *)
         let l = List.length (B.ap_constraints b) + 2 in
         (* l = |b| + 2 *)
@@ -114,12 +134,13 @@ struct
             i := !i + 1)
           (B.ap_constraints b);
         (* copying constraints from b to a *)
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
-        (* creating copies of f1 and f2 *)
-        Linexpr1.set_coeff f1 v (Coeff.s_of_int (-1));
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
+        (* extending f1 and f2 with # (fresh copies) *)
+        Linexpr1.set_coeff f1 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a (l - 2) (Lincons1.make f1 Lincons1.EQ);
         (* adding constraint # = f1 to a *)
-        Linexpr1.set_coeff f2 v (Coeff.s_of_int (-1));
+        Linexpr1.set_coeff f2 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a (l - 1) (Lincons1.make f2 Lincons1.EQ);
         (* adding constraint # = f2 to a *)
         let p = Abstract1.of_lincons_array manager env a in
@@ -140,7 +161,7 @@ struct
     (* k = kind of test, b = domain of first/second function, f1/f2 = value of first/second function *)
     match (f1.ranking, f2.ranking) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b |> B.ap_env) [| v |] [||] in
+        let env = ap_env_ext (B.env b) in
         (* adding special variable # to environment of b *)
         let l = List.length (B.ap_constraints b) + 1 in
         (* l = |b| + 1 *)
@@ -153,12 +174,13 @@ struct
             i := !i + 1)
           (B.ap_constraints b);
         (* copying constraints from b to a1 and a2 *)
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
-        (* creating copies of f1 and f2 *)
-        Linexpr1.set_coeff f1 v (Coeff.s_of_int (-1));
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
+        (* extending f1 and f2 with # (fresh copies) *)
+        Linexpr1.set_coeff f1 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a1 (l - 1) (Lincons1.make f1 Lincons1.SUPEQ);
         (* adding constraint # <= f1 to a1 *)
-        Linexpr1.set_coeff f2 v (Coeff.s_of_int (-1));
+        Linexpr1.set_coeff f2 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a2 (l - 1) (Lincons1.make f2 Lincons1.SUPEQ);
         (* adding constraint # <= f2 to a2 *)
         let p1 = Abstract1.of_lincons_array manager env a1 in
@@ -189,13 +211,13 @@ struct
     | Bot, _ | _, Top -> true
     | _ -> false
 
-  (**)
+  (** Binary operators on functions *)
 
-  let join_ranking ?(random = false) k b f1 f2 =
+  let join_ranking ?(controllable = false) k b f1 f2 =
     (* k = kind of join, b = domain of first/second function, f1/f2 = value of first/second function *)
     match (f1, f2) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b |> B.ap_env) [| v |] [||] in
+        let env = ap_env_ext (B.env b) in
         (* adding special variable # to environment of b *)
         let l = List.length (B.ap_constraints b) + 1 in
         (* l = |b| + 1 *)
@@ -212,14 +234,15 @@ struct
             i := !i + 1)
           (B.ap_constraints b);
         (* copying constraints from b to a1 and a2 *)
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
-        (* creating copies of f1 and f2 *)
-        Linexpr1.set_coeff f1 v (Coeff.s_of_int (-1));
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
+        (* extending f1 and f2 with # (fresh copies) *)
+        Linexpr1.set_coeff f1 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a1 (l - 1) (Lincons1.make f1 Lincons1.SUPEQ);
         (* adding constraint # >= f1 to a1 *)
-        Linexpr1.set_coeff f2 v (Coeff.s_of_int (-1));
+        Linexpr1.set_coeff f2 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a2 (l - 1) (Lincons1.make f2 Lincons1.SUPEQ);
-        (* adding constraint # <= f2 to a2 *)
+        (* adding constraint # >= f2 to a2 *)
         let p1 = Abstract1.of_lincons_array manager env a1 in
         (* p1 = polyhedra represented by a1 *)
         let p2 = Abstract1.of_lincons_array manager env a2 in
@@ -241,7 +264,7 @@ struct
             let c = Lincons1.array_get p i in
             try
               if
-                (not (Coeff.is_zero (Lincons1.get_coeff c v)))
+                (not (Coeff.is_zero (Lincons1.get_coeff c extra_dim)))
                 &&
                 (*REMOVE?*)
                 not (in_env a c)
@@ -258,19 +281,18 @@ struct
         let res =
           let f = ref [] in
           match k with
-          | _ when (random && !Config.resilience) || !Config.property = "atl" ->
+          | _ when (controllable && !Config.resilience) || !Config.property = "atl" ->
               (* When resilience join is on we need to underapproximate f1 and f2*)
               f := filter_constraints (Abstract1.to_lincons_array manager p1);
               f :=
                 !f @ filter_constraints (Abstract1.to_lincons_array manager p2);
-              if List.length !f > 0 then (
+              if List.length !f > 0 then
                 (* There exists a constraint minimizing f1 and f2*)
                 (* f is the smaller element of the list *)
                 let f =
                   Lincons1.get_linexpr1 (List.hd (List.sort lincons1_cmp !f))
                 in
-                Linexpr1.set_coeff f v (Coeff.s_of_int 0);
-                Fun f (* defined join function *))
+                Fun (restrict f (ap_env (B.env b))) (* defined join function *)
               else Top (* otherwise *)
           | _ ->
               let p = Abstract1.join manager p1 p2 in
@@ -278,39 +300,37 @@ struct
               let p = Abstract1.to_lincons_array manager p in
               (* converting p into set of constraints *)
               f := filter_constraints p;
-              if 1 = List.length !f then (
+              if 1 = List.length !f then
                 (* there is only one constraint on # *)
                 let f = Lincons1.get_linexpr1 (List.hd !f) in
-                Linexpr1.set_coeff f v (Coeff.s_of_int 0);
-                Fun f (* defined join function *))
+                Fun (restrict f (ap_env (B.env b))) (* defined join function *)
               else Top (* otherwise *)
         in
         res
     | Bot, _ -> (
         match k with
-        | _ when random && !Config.resilience -> f2
+        | _ when controllable && !Config.resilience -> f2
         | RESILIENCE -> f2
         | APPROXIMATION -> Bot
         | COMPUTATIONAL -> f2)
     | _, Bot -> (
         match k with
-        | _ when random && !Config.resilience -> f1
+        | _ when controllable && !Config.resilience -> f1
         | RESILIENCE -> f1
         | APPROXIMATION -> Bot
         | COMPUTATIONAL -> f1)
     | Fun f, Top | Top, Fun f -> (
         match k with
-        | _ when random && !Config.resilience -> Fun f
+        | _ when controllable && !Config.resilience -> Fun f
         | RESILIENCE -> Fun f
         | APPROXIMATION -> Top
         | COMPUTATIONAL -> Top)
     | _ -> Top
 
-  let join ?(random = false) k b f1 f2 =
-    { ranking = join_ranking ~random k b f1.ranking f2.ranking; env = f1.env }
+  let join ?(controllable = false) k b f1 f2 =
+    { ranking = join_ranking ~controllable k b f1.ranking f2.ranking; env = f1.env }
 
   let meet _ = failwith "nyi"
-  let remove_special v f = Linexpr1.set_coeff f v (Coeff.s_of_int 0)
 
   let learn_ranking b f1 f2 =
     (* b = domain of first/second function, f1/f2 = value of first/second
@@ -327,7 +347,7 @@ struct
     (*REMOVE?*)
     match (f1, f2) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b |> B.ap_env) [| v |] [||] in
+        let env = ap_env_ext (B.env b) in
         (* adding special variable # to environment of b *)
         let l = List.length (B.ap_constraints b) + 1 in
         (* l = |b| + 1 *)
@@ -344,12 +364,13 @@ struct
             i := !i + 1)
           (B.ap_constraints b);
         (* copying constraints from b to a1 and a2 *)
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
-        (* creating copies of f1 and f2 *)
-        Linexpr1.set_coeff f1 v (Coeff.s_of_int (-1));
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
+        (* extending f1 and f2 with # (fresh copies) *)
+        Linexpr1.set_coeff f1 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a1 (l - 1) (Lincons1.make f1 Lincons1.SUPEQ);
         (* adding constraint # <= f1 to a1 *)
-        Linexpr1.set_coeff f2 v (Coeff.s_of_int (-1));
+        Linexpr1.set_coeff f2 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a2 (l - 1) (Lincons1.make f2 Lincons1.SUPEQ);
         (* adding constraint # <= f2 to a2 *)
         let p1 = Abstract1.of_lincons_array manager env a1 in
@@ -365,7 +386,7 @@ struct
           let c = Lincons1.array_get p i in
           try
             if
-              (not (Coeff.is_zero (Lincons1.get_coeff c v)))
+              (not (Coeff.is_zero (Lincons1.get_coeff c extra_dim)))
               &&
               (*REMOVE?*)
               not (in_env a c)
@@ -373,10 +394,9 @@ struct
           with _ -> ()
         done;
         (* f = list of constraints on special variable # *)
-        if 1 = List.length !f (* if there is only one constraint on # *) then (
+        if 1 = List.length !f (* if there is only one constraint on # *) then
           let f = Lincons1.get_linexpr1 (List.hd !f) in
-          remove_special v f;
-          Fun f (* defined join function *))
+          Fun (restrict f (ap_env (B.env b))) (* defined join function *)
         else Top (* otherwise *)
     | Bot, _ | Top, _ | _, Top -> f2
     | _, Bot -> f1
@@ -398,7 +418,7 @@ struct
     (* REMOVE ? *)
     match (f1, f2) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b |> B.ap_env) [| v |] [||] in
+        let env = ap_env_ext (B.env b) in
         (* adding special variable # to environment of b *)
         let l = List.length (B.ap_constraints b) + 1 in
         (* l = |b| + 1 *)
@@ -415,12 +435,13 @@ struct
             i := !i + 1)
           (B.ap_constraints b);
         (* copying constraints from b to a1 and a2 *)
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
-        (* creating copies of f1 and f2 *)
-        Linexpr1.set_coeff f1 v (Coeff.s_of_int (-1));
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
+        (* extending f1 and f2 with # (fresh copies) *)
+        Linexpr1.set_coeff f1 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a1 (l - 1) (Lincons1.make f1 Lincons1.SUPEQ);
         (* adding constraint # <= f1 to a1 *)
-        Linexpr1.set_coeff f2 v (Coeff.s_of_int (-1));
+        Linexpr1.set_coeff f2 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a2 (l - 1) (Lincons1.make f2 Lincons1.SUPEQ);
         (* adding constraint # <= f2 to a2 *)
         let p1 = Abstract1.of_lincons_array manager env a1 in
@@ -436,7 +457,7 @@ struct
           let c = Lincons1.array_get p i in
           try
             if
-              (not (Coeff.is_zero (Lincons1.get_coeff c v)))
+              (not (Coeff.is_zero (Lincons1.get_coeff c extra_dim)))
               &&
               (*REMOVE?*)
               not (in_env a c)
@@ -444,10 +465,9 @@ struct
           with _ -> ()
         done;
         (* f = list of constraints on special variable # *)
-        if 1 = List.length !f (* if there is only one constraint on # *) then (
+        if 1 = List.length !f (* if there is only one constraint on # *) then
           let f = Lincons1.get_linexpr1 (List.hd !f) in
-          Linexpr1.set_coeff f v (Coeff.s_of_int 0);
-          Fun f (* defined widening function *))
+          Fun (restrict f (ap_env (B.env b))) (* defined widening function *)
         else Top (* otherwise *)
     | Bot, _ -> f2
     | _, Bot -> f1
@@ -459,7 +479,7 @@ struct
   let extend_ranking b1 b2 f1 f2 =
     match (f1, f2) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b1 |> B.ap_env) [| v |] [||] in
+        let env = ap_env_ext (B.env b1) in
         (* adding special variable # to environment of b *)
         let l1 = List.length (B.ap_constraints b1) + 1 in
         (* l1 = |b1| + 1 *)
@@ -480,12 +500,13 @@ struct
             j := !j + 1)
           (B.ap_constraints b2);
         (* copying constraints from b2 to a2 *)
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
-        (* creating copies of f1 and f2 *)
-        Linexpr1.set_coeff f1 v (Coeff.s_of_int (-1));
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
+        (* extending f1 and f2 with # (fresh copies) *)
+        Linexpr1.set_coeff f1 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a1 (l1 - 1) (Lincons1.make f1 Lincons1.SUPEQ);
         (* adding constraint # <= f1 to a1 *)
-        Linexpr1.set_coeff f2 v (Coeff.s_of_int (-1));
+        Linexpr1.set_coeff f2 extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a2 (l2 - 1) (Lincons1.make f2 Lincons1.SUPEQ);
         (* adding constraint # <= f2 to a2 *)
         let p1 = Abstract1.of_lincons_array manager env a1 in
@@ -499,7 +520,9 @@ struct
         let f = ref [] in
         for i = 0 to Lincons1.array_length p - 1 do
           let c = Lincons1.array_get p i in
-          try if not (Coeff.is_zero (Lincons1.get_coeff c v)) then f := c :: !f
+          try
+            if not (Coeff.is_zero (Lincons1.get_coeff c extra_dim)) then
+              f := c :: !f
           with _ -> ()
         done;
         (* f = # *)
@@ -511,13 +534,12 @@ struct
             List.map
               (fun c ->
                 let c = Lincons1.get_linexpr1 c in
-                (* let k = Linexpr1.get_coeff c v in
+                (* let k = Linexpr1.get_coeff c extra_dim in
                if Coeff.is_scalar k && (Coeff.cmp k (Coeff.s_of_int 0)) < 0 then
                Linexpr1.set_cst c (Linexpr1.get_cst c);
                if Coeff.is_scalar k && (Coeff.cmp k (Coeff.s_of_int 0)) < 0 then
                Linexpr1.iter (fun k x -> Linexpr1.set_coeff c x (Coeff.neg k)) c; *)
-                Linexpr1.set_coeff c v (Coeff.s_of_int 0);
-                Fun c)
+                Fun (restrict c (ap_env (B.env b1))))
               !f
           in
           List.fold_left (join_ranking COMPUTATIONAL b2) (List.hd f) (List.tl f)
@@ -529,52 +551,14 @@ struct
 
   (**)
 
-  let reset f =
-    {
-      ranking =
-        Fun (Linexpr1.make (Environment.add (env f |> ap_env) [| v |] [||]));
-      env = f.env;
-    }
-
-  let addScalar c1 c2 =
-    match (c1, c2) with
-    | Scalar.Float c1, Scalar.Float c2 -> Scalar.Float (c1 +. c2)
-    | Scalar.Float c1, Scalar.Mpqf c2 -> Scalar.Float (c1 +. Mpqf.to_float c2)
-    | Scalar.Float c1, Scalar.Mpfrf c2 -> Scalar.Float (c1 +. Mpfrf.to_float c2)
-    | Scalar.Mpqf c1, Scalar.Float c2 -> Scalar.Float (Mpqf.to_float c1 +. c2)
-    | Scalar.Mpqf c1, Scalar.Mpqf c2 -> Scalar.Mpqf (Mpqf.add c1 c2)
-    | Scalar.Mpqf c1, Scalar.Mpfrf c2 ->
-        Scalar.Mpqf (Mpqf.add c1 (Mpfrf.to_mpqf c2))
-    | Scalar.Mpfrf c1, Scalar.Float c2 -> Scalar.Float (Mpfrf.to_float c1 +. c2)
-    | Scalar.Mpfrf c1, Scalar.Mpqf c2 ->
-        Scalar.Mpqf (Mpqf.add (Mpfrf.to_mpqf c1) c2)
-    | Scalar.Mpfrf c1, Scalar.Mpfrf c2 ->
-        Scalar.Mpfrf (Mpfrf.add c1 c2 Mpfr.Zero)
-
-  let addCoeff c1 c2 =
-    match (c1, c2) with
-    | Coeff.Scalar c1, Coeff.Scalar c2 -> Coeff.Scalar (addScalar c1 c2)
-    | Coeff.Scalar c1, Coeff.Interval c2 ->
-        Coeff.reduce
-          (Coeff.i_of_scalar
-             (addScalar c1 c2.Interval.inf)
-             (addScalar c1 c2.Interval.sup))
-    | Coeff.Interval c1, Coeff.Scalar c2 ->
-        Coeff.reduce
-          (Coeff.i_of_scalar
-             (addScalar c1.Interval.inf c2)
-             (addScalar c1.Interval.sup c2))
-    | Coeff.Interval c1, Coeff.Interval c2 ->
-        Coeff.reduce
-          (Coeff.i_of_scalar
-             (addScalar c1.Interval.inf c2.Interval.inf)
-             (addScalar c1.Interval.sup c2.Interval.sup))
+  let reset f = zero f.env
 
   let predecessor_ranking f =
     match f with
     | Fun f ->
         let f = Linexpr1.copy f in
-        Linexpr1.set_cst f (addCoeff (Linexpr1.get_cst f) (Coeff.s_of_int (-1)));
+        Linexpr1.set_cst f
+          (add_coeff (Linexpr1.get_cst f) (Coeff.s_of_int (-1)));
         Fun f
     | _ -> f
 
@@ -584,7 +568,7 @@ struct
     match f with
     | Fun f ->
         let f = Linexpr1.copy f in
-        Linexpr1.set_cst f (addCoeff (Linexpr1.get_cst f) (Coeff.s_of_int 1));
+        Linexpr1.set_cst f (add_coeff (Linexpr1.get_cst f) (Coeff.s_of_int 1));
         Fun f
     | _ -> f
 
@@ -596,19 +580,20 @@ struct
     (*REMOVE?*)
     match (f1, f2) with
     | Fun f1, Fun f2 ->
-        let env = Environment.add (B.env b |> B.ap_env) [| v |] [||] in
-        let f1 = Linexpr1.copy f1 and f2 = Linexpr1.copy f2 in
+        let env = ap_env (B.env b) in
+        let f1 = Linexpr1.extend_environment f1 env
+        and f2 = Linexpr1.extend_environment f2 env in
         let f1' = ref Seq.empty in
         let f2' = ref Seq.empty in
         Linexpr1.iter (fun coef var -> f1' := Seq.cons (coef, var) !f1') f1;
         Linexpr1.iter (fun coef var -> f2' := Seq.cons (coef, var) !f2') f2;
         let fcoef =
-          Seq.map2 (fun (c1, v) (c2, v) -> (addCoeff c1 c2, v)) !f1' !f2'
+          Seq.map2 (fun (c1, v) (c2, v) -> (add_coeff c1 c2, v)) !f1' !f2'
           |> List.of_seq
         in
         let f = Linexpr1.make env in
         Linexpr1.set_list f fcoef
-          (Some (addCoeff (Linexpr1.get_cst f1) (Linexpr1.get_cst f2)));
+          (Some (add_coeff (Linexpr1.get_cst f1) (Linexpr1.get_cst f2)));
         successor_ranking @@ Fun f
     | _, Bot | Bot, _ -> Bot
     | _, Top | Top, _ -> Top
@@ -621,11 +606,12 @@ struct
     | T_var x -> (
         match f with
         | Fun f ->
-            let env = Linexpr1.get_env f in
+            let fenv = Linexpr1.get_env f in
+            let env = Environment.add fenv [| extra_dim |] [||] in
             let e = Texpr1.of_expr env (exp_to_apron e) in
-            let f = Linexpr1.copy f in
+            let f = Linexpr1.extend_environment f env in
             let a = Lincons1.array_make env 1 in
-            Linexpr1.set_coeff f v (Coeff.s_of_int (-1));
+            Linexpr1.set_coeff f extra_dim (Coeff.s_of_int (-1));
             Lincons1.array_set a 0 (Lincons1.make f Lincons1.SUPEQ);
             let p = Abstract1.of_lincons_array manager env a in
             let p =
@@ -633,10 +619,11 @@ struct
             in
             let a = Abstract1.to_lincons_array manager p in
             if 1 = Lincons1.array_length a then (
-              let f = Lincons1.get_linexpr1 (Lincons1.array_get a 0) in
-              Linexpr1.set_coeff f v (Coeff.s_of_int 0);
+              let f =
+                restrict (Lincons1.get_linexpr1 (Lincons1.array_get a 0)) fenv
+              in
               Linexpr1.set_cst f
-                (addCoeff (Linexpr1.get_cst f) (Coeff.s_of_int 1));
+                (add_coeff (Linexpr1.get_cst f) (Coeff.s_of_int 1));
               Fun f)
             else Top
         | _ -> f)
@@ -701,6 +688,6 @@ struct
     | Top -> Format.fprintf fmt "top"
 end
 
-module AB = AP_Affine (B.N) (B)
-module AO = AP_Affine (O.N) (O)
-module AP = AP_Affine (P.N) (P)
+module AB = AP_Affine (B)
+module AO = AP_Affine (O)
+module AP = AP_Affine (P)

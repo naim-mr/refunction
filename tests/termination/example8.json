@@ -1,5 +1,11 @@
 {
-    "property":"AF{exit:true}",
+    "property": "AF{exit:true}",
     "joinbwd": 7,
-    "domain": "polyhedra"
+    "domain": "polyhedra",
+    "expected": {
+        "result": "TRUE",
+        "suff": 1,
+        "leaves": 1,
+        "time": 1.0
+    }
 }

@@ -1,5 +1,11 @@
 {
-    "property":"AF{exit:true}",
+    "property": "AF{exit:true}",
     "domain": "polyhedra",
-    "ordinals": 3
+    "ordinals": 3,
+    "expected": {
+        "result": "TRUE",
+        "suff": 13,
+        "leaves": 13,
+        "time": 1.0
+    }
 }

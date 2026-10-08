@@ -62,6 +62,25 @@ let mul_scalar c1 c2 =
       Scalar.Mpqf (Mpqf.mul (Mpfrf.to_mpqf c1) c2)
   | Scalar.Mpfrf c1, Scalar.Mpfrf c2 -> Scalar.Mpfrf (Mpfrf.mul c1 c2 Mpfr.Zero)
 
+let add_coeff c1 c2 =
+  match (c1, c2) with
+  | Coeff.Scalar c1, Coeff.Scalar c2 -> Coeff.Scalar (add_scalar c1 c2)
+  | Coeff.Scalar c1, Coeff.Interval c2 ->
+      Coeff.reduce
+        (Coeff.i_of_scalar
+           (add_scalar c1 c2.Interval.inf)
+           (add_scalar c1 c2.Interval.sup))
+  | Coeff.Interval c1, Coeff.Scalar c2 ->
+      Coeff.reduce
+        (Coeff.i_of_scalar
+           (add_scalar c1.Interval.inf c2)
+           (add_scalar c1.Interval.sup c2))
+  | Coeff.Interval c1, Coeff.Interval c2 ->
+      Coeff.reduce
+        (Coeff.i_of_scalar
+           (add_scalar c1.Interval.inf c2.Interval.inf)
+           (add_scalar c1.Interval.sup c2.Interval.sup))
+
 let mul_coeff c1 c2 =
   match (c1, c2) with
   | Coeff.Scalar c1, Coeff.Scalar c2 -> Coeff.Scalar (mul_scalar c1 c2)

@@ -1,5 +1,11 @@
 {
-    "property":"AF{exit:true}",
+    "property": "AF{exit:true}",
     "precondition": "x > 10",
-    "domain": "boxes"
+    "domain": "boxes",
+    "expected": {
+        "result": "TRUE",
+        "suff": 3,
+        "leaves": 3,
+        "time": 1.0
+    }
 }

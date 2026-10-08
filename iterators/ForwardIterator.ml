@@ -178,7 +178,7 @@ module ForwardIterator (B : PARTITION) = struct
      `char x = (char) input(id)` is T_unary (A_cast _, (T_INPUT id, ...)). *)
   let rec input_of_expr (e : Typed_syntax.expr) : string option =
     match e with
-    | T_INPUT (id, _) -> Some id
+    | T_input (id, _) -> Some id
     | _ -> (
         match unbox_cast e with
         | Some (e', _) -> input_of_expr e'

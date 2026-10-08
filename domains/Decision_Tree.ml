@@ -29,8 +29,8 @@ open AP_Ordinals
     auxiliary numerical abstract domain B. *)
 
 module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION = struct
-  module B = F.B (* auxiliary numerical abstract domain *)
-  module C = B.C (* auxiliary linear constraints abstract domain *)
+  module B = F.B (* auxiliary parition abstract domain *)
+  module C = B.C (* auxiliary constraints abstract domain *)
 
   module CMap = Map.Make (struct
     type t = C.t
@@ -139,8 +139,8 @@ module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION = struct
     in
     Format.fprintf fmt "graph G { %a }" (aux (nextNodeId ())) t.tree
 
-  (** [tree_labels t] collects the linear constraints labeling the current
-      decision tree. *)
+  (** [tree_labels t] collects the constraints labeling the current decision
+      tree. *)
   let tree_labels t =
     let ls = ref LSet.empty in
     let rec aux t =
@@ -425,16 +425,6 @@ module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION = struct
   let top e = { tree = Leaf (F.top e.f_env); env = e }
 
   (* BINARY OPERATORS *)
-  let domain_zero t =
-    let rec aux tree =
-      match tree with
-      | Bot -> tree
-      | Leaf f when not (F.defined f) -> tree
-      | Leaf _ -> Leaf (F.zero t.env.f_env)
-      | Node ((c, nc), l, r) -> Node ((c, nc), aux l, aux r)
-    in
-    { t with tree = aux t.tree }
-
   let tree_unification_aux t1 t2 f_env cs =
     let rec aux (t1, t2) cs =
       match (t1, t2) with
@@ -1185,7 +1175,7 @@ module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION = struct
               if underapprox && not !resilience then COMPUTATIONAL
               else APPROXIMATION
             in
-            Leaf (F.join ~random:controllable joinType b f1 f2)
+            Leaf (F.join ~controllable joinType b f1 f2)
         | Node ((c1, nc1), l1, r1), Node ((c2, nc2), l2, r2) when C.is_eq c1 c2
           ->
             Node ((c1, nc1), aux (l1, l2) (c1 :: cs), aux (r1, r2) (nc1 :: cs))
@@ -2071,47 +2061,6 @@ module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION = struct
         let nb = List.filter (fun x -> not (List.mem x b)) t.vars in
         { safe = b; vulnerables = nb; cons = arr })
       j *)
-
-  let merge_after t =
-    let domain = t.env.domain in
-    let env = t.env in
-    let f_env = env.f_env in
-    match t.tree with
-    | Node ((c1, nc1), t1, t2) ->
-        let fBotLeftRight cs f =
-          let b =
-            match domain with
-            | None -> B.inner f_env cs
-            | Some domain -> B.meet COMPUTATIONAL (B.inner f_env cs) domain
-          in
-          if B.is_bot b then Bot else Leaf f
-        in
-        let fLeaf cs f1 f2 =
-          let b =
-            match domain with
-            | None -> B.inner f_env cs
-            | Some domain -> B.meet COMPUTATIONAL (B.inner f_env cs) domain
-          in
-          if B.is_bot b then Bot
-          else Leaf (F.join RESILIENCE ~random:true b f1 f2)
-        in
-        let rec aux (t1, t2) cs =
-          match (t1, t2) with
-          | Bot, Bot -> Bot
-          | Leaf f, Bot -> fBotLeftRight cs f
-          | Bot, Leaf f -> fBotLeftRight cs f
-          | Leaf f1, Leaf f2 -> fLeaf cs f1 f2
-          | Node ((c1, nc1), l1, r1), Node ((c2, nc2), l2, r2) ->
-              (* if not (C.is_eq c1 c2) then raise (Invalid_argument "tree_join_helper: invalid tree structure, constraints don't match"); *)
-              let l = aux (l1, l2) (c1 :: cs) in
-              let r = aux (r1, r2) (nc1 :: cs) in
-              Node ((c1, nc1), l, r)
-          | _ ->
-              raise
-                (Invalid_argument "tree_join_helper: invalid tree structure")
-        in
-        { t with tree = aux (tree_unification_aux t1 t2 f_env []) [] }
-    | _ -> t
 end
 
 module TSAB = Decision_Tree (AB)

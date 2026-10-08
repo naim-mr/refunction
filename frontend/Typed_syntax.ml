@@ -32,7 +32,7 @@ type expr =
   | T_binary of binary_op * expr typed * expr typed
   | T_float_const of float_set
   | T_int_const of int_set
-  | T_INPUT of string * int_set
+  | T_input of string * int_set
   | T_bool_const of bool_set
   | T_var of var
   | T_deref of expr typed
@@ -194,7 +194,7 @@ let rec pp_expr_ext fmt ((e, _, _) : expr typed) =
   | T_float_const f -> Format.pp_print_string fmt (string_of_float_set f)
   | T_int_const i -> Format.pp_print_string fmt (string_of_int_set i)
   | T_bool_const b -> Format.pp_print_string fmt (string_of_tbool b)
-  | T_INPUT (id, (min, max)) ->
+  | T_input (id, (min, max)) ->
       Format.fprintf fmt "input('%s',%s)" id (string_of_int_set (min, max))
   | T_var v -> print_var_name fmt v
   | T_deref e -> Format.fprintf fmt " *%a " pp_expr_ext e
@@ -218,7 +218,7 @@ let rec pp_expr fmt e =
   | T_float_const f -> Format.pp_print_string fmt (string_of_float_set f)
   | T_int_const i -> Format.pp_print_string fmt (string_of_int_set i)
   | T_bool_const b -> Format.pp_print_string fmt (string_of_tbool b)
-  | T_INPUT (id, (min, max)) ->
+  | T_input (id, (min, max)) ->
       Format.fprintf fmt "input('%s',%s)" id (string_of_int_set (min, max))
   | T_var v -> print_var_name fmt v
   | T_deref (e, _, _) -> Format.fprintf fmt " *%a " pp_expr e
@@ -475,6 +475,48 @@ let rec expr_is_univariate e =
   | T_binary (op, (e1, _, _), (e2, _, _)) ->
       expr_is_univariate e1 && expr_is_univariate e2 && not (is_var2 e1 e2)
   | _ -> true
+
+(* [unit_vars e] returns the variables of the arithmetic expression [e] with
+   their sign, when [e] is a sum of constants and of variables with coefficient
+   +1 or -1, each variable occurring once; [None] otherwise. *)
+let rec unit_vars e =
+  let combine s (e1, _, _) (e2, _, _) =
+    match (unit_vars e1, unit_vars e2) with
+    | Some l1, Some l2 ->
+        let l2 = List.map (fun (v, k) -> (v, s * k)) l2 in
+        let mem (v, _) = List.exists (fun (w, _) -> w.var_id = v.var_id) l1 in
+        if List.exists mem l2 then None
+        else Some (l1 @ l2)
+    | _ -> None
+  in
+  match e with
+  | T_int_const _ -> Some []
+  | T_var v -> Some [ (v, 1) ]
+  | T_unary (A_UNARY_PLUS, (e, _, _)) -> unit_vars e
+  | T_unary (A_UNARY_MINUS, (e, _, _)) ->
+      Option.map (List.map (fun (v, k) -> (v, -k))) (unit_vars e)
+  | T_binary (A_PLUS, e1, e2) -> combine 1 e1 e2
+  | T_binary (A_MINUS, e1, e2) -> combine (-1) e1 e2
+  | _ -> None
+
+(* [expr_is_octagonal e] tests if [e] fits the octagon domain: a condition
+   whose sides differ by at most two variables of coefficient +1/-1, or an
+   arithmetic expression with at most one such variable (so that [x := e] is
+   octagonal). *)
+let rec expr_is_octagonal e =
+  let at_most n = function Some l -> List.length l <= n | None -> false in
+  match e with
+  | T_bool_const _ -> true
+  | T_unary (A_NOT, (e, _, _)) -> expr_is_octagonal e
+  | T_binary ((A_AND | A_OR), (e1, _, _), (e2, _, _)) ->
+      expr_is_octagonal e1 && expr_is_octagonal e2
+  | T_binary
+      ( ( A_EQUAL | A_NOT_EQUAL | A_LESS | A_LESS_EQUAL | A_GREATER
+        | A_GREATER_EQUAL ),
+        e1,
+        e2 ) ->
+      at_most 2 (unit_vars (T_binary (A_MINUS, e1, e2)))
+  | e -> at_most 1 (unit_vars e)
 
 (************************************************************************)
 (* MISC *)

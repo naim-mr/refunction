@@ -11,28 +11,39 @@ module type PARTITION = sig
       conjunction of such constraints *)
 
   include DOMAIN with type dim = C.dim
-  
-  val is_representable: expr -> bool
 
-  val constraints : t -> C.cons list
-  (** [constraints t] returns the conjunction of constraints as a list of
-      constraints in C*)
+  val is_representable : expr -> bool
+  (** [is_representable e] tests if the expression [e] is EXACTLY representable
+      in the partition, i.e. assigning or filtering by [e] loses no precision.
+      It is one half of the A-controlled condition (see [ATLIterator]: not
+      tainted AND exactly representable), so it must only hold when it is
+      true: [false] is always sound, at the cost of fewer A-controlled
+      statements. *)
 
   val conjunction : t -> C.t list
-  (** [constraints t] returns the conjunction of constraints as a list of
-      constraints in C*)
+  (** [conjunction t] returns [t] as a list of constraints in [C] (equalities
+      expanded into pairs of inequalities when [C] supports it). Generic
+      access to the constraints of a partition; [c.cons] gives the raw
+      representation. *)
 
-  val assume : ?pow:float -> t -> t * t
-  (** [assume t] split the set of constraints in two set of constraints for
-      conflict-driven analysis *)
+  val split : ?pow:float -> t -> t * t
+  (** [split ~pow t] cuts [t] in two pieces [(t1, t2)]. Used by the
+      conflict-driven analysis to split a piece where the ranking function is
+      undefined and restart the analysis on each half.
+
+      CONTRACT (checked by asserts in [Cda]): [t1 ⊔ t2 = t], and neither [t1]
+      nor [t2] is bottom. [pow] steers where the cut is made. When no cut is
+      possible, [(t, t)] is returned. *)
 
   val inner : env -> C.t list -> t
   (** [inner env cs] returns the partitions defined by the constraints in [cs]
       on [env]*)
 
   val bwd_assign : ?controllable:bool -> t -> expr typed * expr typed -> t
-  (** [bwd_assign t lv exp] Over-approximating backward assignement [lv := exp]
-      on [t]*)
+  (** [bwd_assign ~controllable t lv exp] Over-approximating backward
+      assignement [lv := exp] on [t]. [controllable] (default [false]) tells
+      whether the statement is A-controlled, i.e. not tainted and exactly
+      representable. *)
 
   val ubwd_assign : t -> expr typed * expr typed -> t
   (** [ubwd_assign t lv exp] Under-approximating backward assignement
@@ -42,8 +53,10 @@ module type PARTITION = sig
   (** [fwd_assign t lv exp] Over-approximating forward assignement [lv := exp]
       on [t]*)
 
-  val fwd_filter : ?controllable:bool ->  t -> expr typed -> t
-  (** [fwd_assign t exp] Over-approximating forward filter [exp != 0] on [t]*)
+  val fwd_filter : ?controllable:bool -> t -> expr typed -> t
+  (** [fwd_filter ~controllable t exp] Over-approximating forward filter
+      [exp != 0] on [t]. [controllable] (default [false]): same meaning as in
+      [bwd_assign]. *)
 
   val ubwd_filter : t -> expr typed -> t
   (** [ubwd_assign t exp] Under-approximating backward filter [exp != 0] on [t]*)
@@ -55,7 +68,11 @@ module type AP_NUMERICAL = sig
   type lib
   val manager : lib Manager.t
   val supports_underapproximation : bool
-  val is_representable: expr -> bool
+
+  val is_representable : expr -> bool
+  (** [is_representable e] tests if [e] is exactly representable in the
+      numerical domain (e.g. univariate for boxes, linear for polyhedra).
+      [AP_Partition] forwards it as [PARTITION.is_representable]. *)
 end
 
 (** [module type AP_PARTITION] module type for [PARTITION] relying on APRON *)
@@ -74,23 +91,6 @@ module type AP_PARTITION = sig
   val ap_inner : env -> Lincons1.t list -> t
   (** [ap_inner env cs] builds a partition from APRON linear constraints (dual
       of [ap_constraints]); the non-numerical components are left at top. *)
-end
-
-(** [module type AP_NUMERIC] a partition that exposes an APRON numerical
-    projection ([ap_env]/[ap_constraints]/[N]) for the affine ranking leaves,
-    WITHOUT constraining its node-constraint domain [C]. Unlike [AP_PARTITION],
-    [C] here is a plain [CONSTRAINT] (possibly a sum of several constraint
-    domains), so a product partition can be an [AP_NUMERIC] while its decision
-    nodes range over more than just linear constraints. Every [AP_PARTITION]
-    module is also an [AP_NUMERIC]. *)
-module type AP_NUMERIC = sig
-  module C : CONSTRAINT
-  module N : AP_NUMERICAL
-  include PARTITION with module C := C and type env = C.env
-
-  val ap_env : env -> Environment.t
-  val ap_constraints : t -> Lincons1.t list
-  val ap_inner : env -> Lincons1.t list -> t
 end
 
 module type FUNCTION = sig
@@ -142,9 +142,12 @@ module type FUNCTION = sig
   (** [domain_eq kind domain t1 t2] checks if the function [t1] is equal to [t2]
       on the given [domain] *)
 
-  val join : ?random:bool -> kind -> B.t -> t -> t -> t
-  (** [is_leq kind domain t1 t2] compute the join of function [t1] and the
-      function [t2] on the given [domain] *)
+  val join : ?controllable:bool -> kind -> B.t -> t -> t -> t
+  (** [join ~controllable kind domain t1 t2] computes the join of the functions
+      [t1] and [t2] on the given [domain]. [controllable] is the control of the
+      statement being assigned: [true] (A-controlled) selects the resilience
+      join, [false] (Ā-controlled, default) the approximation join, which is
+      the sound default. *)
 
   val widen : ?jokers:int -> B.t -> t -> t -> t
   (** [widening domain t1 t2] compute the widening of function [t1] and the
@@ -213,32 +216,55 @@ module type RANKING_FUNCTION = sig
   val is_bot : t -> bool
   (** [is_bot t] tests if [t] is equal to bot. *)
 
+  (** {2 Core} Used by every analysis (termination, ATL, CTL). *)
+
   val is_leq : kind -> t -> t -> bool
   val join : kind -> t -> t -> t
   val widen : ?jokers:int -> t -> t -> t
-  val meet : kind -> t -> t -> t
   val lift_fenv : B.env -> env
-  val dual_widen : t -> t -> t
   val update_dom : B.t option -> env -> env
   val bwd_assign : ?domain:B.t -> ?controllable:bool -> t -> expr typed * expr typed -> t
+  (** [bwd_assign ~controllable t (lv, exp)] backward assignment. When pieces
+      overlap after the assignment, they are merged with [F.join
+      ~controllable]: resilience join if the statement is A-controlled
+      ([true]), approximation join otherwise ([false], default). *)
+
   val filter : ?controllable:bool -> ?domain:B.t ->  t -> expr typed -> t
-  val ubwd_assign : ?domain:B.t -> ?controllable:bool ->  t -> expr typed * expr typed -> t
-  val ubwd_filter :?controllable:bool -> ?domain:B.t -> t -> expr typed -> t
+  (** [filter ~controllable t exp] backward filter: prunes [t] and adds the
+      condition [exp]. The join between the two branches of a conditional is
+      not done here but by the iterator. *)
   val zero : env -> t
-  val domain_zero : t -> t
   val plus : t -> t -> t
   val defined : ?condition:expr typed -> t -> bool
+  val refine : t -> B.t -> t
+
+  (** {2 Temporal operators} Used by ATL and CTL; the termination analysis
+      does not need them. *)
+
+  val meet : kind -> t -> t -> t
+  val dual_widen : t -> t -> t
   val partially_defined : ?condition:expr typed -> t -> bool
   val complement : t -> t
   val reset : ?mask:t -> t -> expr typed -> t
   val until : t -> t -> t -> t
-  val refine : t -> B.t -> t
   val mask : t -> t -> t
+
+  (** {2 Under-approximating transformers} Called directly by CTL; [reset]
+      also uses [ubwd_filter] internally. *)
+
+  val ubwd_assign : ?domain:B.t -> ?controllable:bool ->  t -> expr typed * expr typed -> t
+  val ubwd_filter :?controllable:bool -> ?domain:B.t -> t -> expr typed -> t
+
+  (** {2 Conflict-driven analysis} Used by [Cda] ([compress] also by ATL and
+      CTL). *)
+
   val learn : t -> t -> t
   val conflict : t -> B.t list
   val reinit : t -> t
   val compress : t -> t
-  val merge_after : t -> t
+
+  (** {2 Output} *)
+
   val print : Format.formatter -> t -> unit
   val output_json : var list -> t -> Yojson.Safe.t
   val print_graphviz_dot : Format.formatter -> t -> unit

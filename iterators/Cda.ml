@@ -165,7 +165,7 @@ end = struct
                 (*
                   [b1] \cup [b2] == ab
                 *)
-                let b1, b2 = S.D.B.assume ~pow:(float_of_int n) ab in
+                let b1, b2 = S.D.B.split ~pow:(float_of_int n) ab in
                 (* We reinit the leaf that are at top *)
                 assert (
                   S.D.B.is_leq APPROXIMATION ab (S.D.B.join APPROXIMATION b1 b2));

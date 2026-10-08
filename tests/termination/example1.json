@@ -1,4 +1,10 @@
 {
-    "property":"AF{exit:true}",
-    "domain": "polyhedra"
+    "property": "AF{exit:true}",
+    "domain": "polyhedra",
+    "expected": {
+        "result": "TRUE",
+        "suff": 3,
+        "leaves": 3,
+        "time": 1.0
+    }
 }

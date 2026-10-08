@@ -68,14 +68,14 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
       with Exit -> false
     else F.is_leq k b f1 f2
 
-  let join ?(random = false) k b (f1, ff1) (f2, ff2) =
+  let join ?(controllable = false) k b (f1, ff1) (f2, ff2) =
     let env = B.env b in
     let rec aux i ff1 ff2 =
       match (ff1, ff2) with
       | [], [] -> ( match i with 0 -> [] | _ -> [ F.successor (F.zero env) ])
       | [], y :: ys -> (
           let x = F.zero env in
-          let z = F.join ~random k b x y in
+          let z = F.join ~controllable k b x y in
           match i with
           | 0 -> if F.defined z then z :: aux 0 [] ys else x :: aux 1 [] ys
           | _ ->
@@ -83,14 +83,14 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
               else F.successor x :: aux 1 [] ys)
       | x :: xs, [] -> (
           let y = F.zero env in
-          let z = F.join ~random k b x y in
+          let z = F.join ~controllable k b x y in
           match i with
           | 0 -> if F.defined z then z :: aux 0 xs [] else y :: aux 1 xs []
           | _ ->
               if F.defined z then F.successor z :: aux 0 xs []
               else F.successor y :: aux 1 xs [])
       | x :: xs, y :: ys -> (
-          let z = F.join ~random k b x y in
+          let z = F.join ~controllable k b x y in
           match i with
           | 0 ->
               if F.defined z then z :: aux 0 xs ys
@@ -99,7 +99,7 @@ module AP_OrdinalValued (F : FUNCTION) : FUNCTION = struct
               if F.defined z then F.successor z :: aux 0 xs ys
               else F.successor (F.zero env) :: aux 1 xs ys)
     in
-    let f = F.join ~random k b f1 f2 in
+    let f = F.join ~controllable k b f1 f2 in
     if F.defined f then
       let ff = aux 0 ff1 ff2 in
       if List.length ff > !Config.ordmax then (F.top env, []) else (f, ff)

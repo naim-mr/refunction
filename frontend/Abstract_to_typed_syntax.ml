@@ -189,11 +189,11 @@ let rec pure_expr env pre post (e, x) =
           A_int (A_LONG, A_SIGNED)
         else A_int (A_INTEGER, A_SIGNED)
       in
-      ( (T_INPUT (id, (Finite i1, Finite i2)), A_int (A_INT, A_SIGNED), x),
+      ( (T_input (id, (Finite i1, Finite i2)), A_int (A_INT, A_SIGNED), x),
         pre,
         post )
   | A_INPUT (id, None) ->
-      ((T_INPUT (id, (MINF, INF)), A_int (A_INT, A_SIGNED), x), pre, post)
+      ((T_input (id, (MINF, INF)), A_int (A_INT, A_SIGNED), x), pre, post)
   | A_float_const s ->
       (* always double type *)
       (* TODO: return a sound interval enclosing the decimal literal *)

@@ -36,18 +36,6 @@ struct
   type apron_t = N.lib Abstract1.t
   (** An element of the numerical abstract domain. *)
 
-  (** The current representation as list of linear constraints. *)
-  let constraints t =
-    List.fold_right
-      (fun c cs ->
-        (* warning: fold_left impacts speed and result of the analysis *)
-        try
-          (* equality constraints are turned into pairs of inequalities *)
-          let c1, c2 = C.expand c in
-          c1.cons :: c2.cons :: cs
-        with Invalid_argument _ -> c.cons :: cs)
-      t.constraints []
-
   let conjunction t =
     List.fold_right
       (fun c cs ->
@@ -60,8 +48,8 @@ struct
       t.constraints []
 
   (* the node-constraint domain is already linear, so the APRON projection is
-     just the list of constraints *)
-  let ap_constraints = constraints
+     just the raw constraints of the conjunction *)
+  let ap_constraints t = List.map (fun (c : C.t) -> c.cons) (conjunction t)
   let env t = t.env
   let set_env env t = { t with env }
 
@@ -150,7 +138,7 @@ struct
 
   (**)
 
-  let rec assume ?(pow = 5.) b =
+  let rec split ?(pow = 5.) b =
     let env = b.env in
     (* count occurrences of variables within the polyhedral constraints *)
     let blookup =
@@ -238,7 +226,7 @@ struct
       else
         let p2 = 2. ** pow in
         if Scalar.cmp inf (Scalar.of_float p2) > 0 then
-          assume ~pow:(2. ** (pow +. 1.)) b
+          split ~pow:(2. ** (pow +. 1.)) b
         else
           let mid = int_of_float p2 in
           let e = Linexpr1.make ap_env in
@@ -499,7 +487,7 @@ struct
       raise
         (Invalid_argument
            "Underapproximation not supported by this abstract domain, use \
-            octagons or polyhedra instead");
+            polyhedra instead");
     let env = env t in
     let at = to_apron_t t in
     let top = Abstract1.top manager (Abstract1.env at) in
@@ -670,7 +658,7 @@ end
 module AP_Oct : AP_NUMERICAL = struct
   type lib = Oct.t
 
-  let is_representable = fun e -> false
+  let is_representable = Typed_syntax.expr_is_octagonal
   let manager = Oct.manager_alloc ()
   let supports_underapproximation = false
 end

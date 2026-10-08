@@ -67,11 +67,11 @@ module type CONSTRAINT = sig
   (** [negate t] returns the negation of [t].
 
       CONTRACT — the negation must be EXACT, not an over-approximation:
-      [t ∧ negate t = ⊥] and [t ∨ negate t = ⊤]. A decision-tree node stores
-      the pair [(c, negate c)] and its two branches are meant to partition the
-      state space; an inexact negation makes the two branches either overlap
-      (unsound joins) or miss states (unsound coverage). [negate (negate t)]
-      must also be [t], up to normalisation.
+      [t ∧ negate t = ⊥] and [t ∨ negate t = ⊤]. A decision-tree node stores the
+      pair [(c, negate c)] and its two branches are meant to partition the state
+      space; an inexact negation makes the two branches either overlap (unsound
+      joins) or miss states (unsound coverage). [negate (negate t)] must also be
+      [t], up to normalisation.
 
       This means the constraint domain has to be CLOSED UNDER COMPLEMENT, which
       is a real restriction on what can be plugged in here:
@@ -84,9 +84,6 @@ module type CONSTRAINT = sig
       The type system cannot enforce any of this. The law is checked instead by
       the domain test harness (see domains/todo.md §4.1). *)
 
-  val expand : t -> t * t
-  (** [expand t] transforms equalities in pairs of supeq and infeq. *)
-
   val print : Format.formatter -> t -> unit
 end
 
@@ -95,8 +92,8 @@ type lincons_env = { vars : var list; ap_env : Environment.t }
 module type AP_CONSTRAINT = sig
   include CONSTRAINT with type env = lincons_env and type cons = Lincons1.t
 
-  val linexpr : t -> Linexpr1.t
-  (** [linexpr t] returns the linear expression of [t]. APRON-specific, hence
-      declared here rather than in {!CONSTRAINT}: a congruence or a boolean
-      predicate has no meaningful linearisation. *)
+  val expand : t -> t * t
+  (** [expand t] splits an equality [e = 0] into the pair [e >= 0], [-e >= 0].
+      Raises [Invalid_argument] if [t] is not an equality. Linear-specific: a
+      generic constraint has no such splitting. *)
 end

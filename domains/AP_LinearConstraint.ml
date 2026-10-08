@@ -31,7 +31,6 @@ module AP_LinearConstraint : AP_CONSTRAINT = struct
 
   let env t = t.env
   let set_env env t = { t with env }
-  let linexpr t = Lincons1.get_linexpr1 t.cons
 
   (**)
   let is_bot t = Lincons1.is_unsat t.cons
@@ -240,7 +239,6 @@ module AP_LinearConstraint : AP_CONSTRAINT = struct
         aux k ""
     | Lincons1.DISEQ -> raise (Invalid_argument "print:DISEQ")
     | Lincons1.EQMOD s -> raise (Invalid_argument "print:EQMOD")
-
 end
 
 module C = AP_LinearConstraint

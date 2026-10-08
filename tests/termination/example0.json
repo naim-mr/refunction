@@ -1,4 +1,10 @@
 {
     "property": "AF{exit:true}",
-    "precondition": "x > 10"
+    "precondition": "x > 10",
+    "expected": {
+        "result": "TRUE",
+        "suff": 3,
+        "leaves": 5,
+        "time": 1.0
+    }
 }
