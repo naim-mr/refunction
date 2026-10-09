@@ -64,8 +64,14 @@ l. 2035 est dans `vulnerable`, commenté) et `AP_OrdinalValued (F : FUNCTION)`.
         appelé ; gardé pour plus tard) ;
       - Plantages préexistants avec un petit tas (`OCAMLRUNPARAM=s=4k`) :
         segfault sur `example2c/2d/2e`, `squeez_interval_2d/2e` (déjà avant S1,
-        `b3bae7f2`). Même famille probable : usage d'APRON non sûr vis-à-vis du
-        GC. À traquer ;
+        `b3bae7f2`). Diagnostic (09/10/2026, mis de côté) : bug de la liaison
+        APRON 0.9.15 / mlgmpidl 1.3.0, reproduit hors de notre code
+        (`make`/`set_cst`/`get_cst` en boucle : constante corrompue après
+        ~10⁴ tours, aucune erreur si les expressions restent vivantes → le
+        finaliseur libère de la mémoire encore utilisée). Rare avec le tas par
+        défaut. Avant une issue en amont : tester en environnement propre (la
+        machine a deux MPFR, 4.1.1-p1 dans `/usr/local` et 4.1.0 système,
+        utilisées respectivement par APRON et mlgmpidl) et la version dev ;
       - ATL n'a aucune référence dans `logs/` : `--cover logs` n'en lance aucun
         test, donc la régression ne couvre pas ATL. Ajouter les références ;
       - `AP_Affine` : à partir d'une contrainte `a·x + k·# + c ≥ 0`, on lit `f`

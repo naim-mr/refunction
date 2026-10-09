@@ -590,17 +590,18 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION = struct
         let env = ap_env_ext (B.env b) in
         let f1 = Linexpr1.extend_environment f1 env
         and f2 = Linexpr1.extend_environment f2 env in
-        let f1' = ref Seq.empty in
-        let f2' = ref Seq.empty in
-        Linexpr1.iter (fun coef var -> f1' := Seq.cons (coef, var) !f1') f1;
-        Linexpr1.iter (fun coef var -> f2' := Seq.cons (coef, var) !f2') f2;
-        let fcoef =
-          Seq.map2 (fun (c1, v) (c2, v) -> (add_coeff c1 c2, v)) !f1' !f2'
-          |> List.of_seq
-        in
+        (* coefficients read from f1/f2 are summed right away and never kept:
+           a value read from an APRON expression may not stay valid *)
         let f = Linexpr1.make env in
-        Linexpr1.set_list f fcoef
-          (Some (add_coeff (Linexpr1.get_cst f1) (Linexpr1.get_cst f2)));
+        let sum x =
+          Linexpr1.set_coeff f x
+            (add_coeff (Linexpr1.get_coeff f1 x) (Linexpr1.get_coeff f2 x))
+        in
+        let ivars, rvars = Environment.vars env in
+        Array.iter sum ivars;
+        Array.iter sum rvars;
+        Linexpr1.set_cst f
+          (add_coeff (Linexpr1.get_cst f1) (Linexpr1.get_cst f2));
         successor_ranking @@ Fun f
     | _, Bot | Bot, _ -> Bot
     | _, Top | Top, _ -> Top
