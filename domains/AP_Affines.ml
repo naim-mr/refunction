@@ -6,7 +6,7 @@
 open Typed_syntax
 open Apron
 open Sig.Ranking
-open Tast_to_texpr
+open Tast_to_texpr  
 open Utils
 open Apron_utils
 open Sig
@@ -278,10 +278,9 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION = struct
         let res =
           let f = ref [] in
           match k with
-          | _
-            when (controllable && !Config.resilience)
-                 || !Config.property = "atl" ->
-              (* When resilience join is on we need to underapproximate f1 and f2*)
+          | _ when controllable ->
+              (* A-controlled statement: resilience join, which
+                 underapproximates f1 and f2 *)
               f := filter_constraints (Abstract1.to_lincons_array manager p1);
               f :=
                 !f @ filter_constraints (Abstract1.to_lincons_array manager p2);
@@ -310,19 +309,19 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION = struct
         res
     | Bot, _ -> (
         match k with
-        | _ when controllable && !Config.resilience -> f2
+        | _ when controllable -> f2
         | RESILIENCE -> f2
         | APPROXIMATION -> Bot
         | COMPUTATIONAL -> f2)
     | _, Bot -> (
         match k with
-        | _ when controllable && !Config.resilience -> f1
+        | _ when controllable -> f1
         | RESILIENCE -> f1
         | APPROXIMATION -> Bot
         | COMPUTATIONAL -> f1)
     | Fun f, Top | Top, Fun f -> (
         match k with
-        | _ when controllable && !Config.resilience -> Fun f
+        | _ when controllable -> Fun f
         | RESILIENCE -> Fun f
         | APPROXIMATION -> Top
         | COMPUTATIONAL -> Top)
