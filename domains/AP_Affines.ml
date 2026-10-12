@@ -6,7 +6,7 @@
 open Typed_syntax
 open Apron
 open Sig.Ranking
-open Tast_to_texpr  
+open Tast_to_texpr
 open Utils
 open Apron_utils
 open Sig
