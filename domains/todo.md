@@ -118,10 +118,14 @@ l. 2035 est dans `vulnerable`, commenté) et `AP_OrdinalValued (F : FUNCTION)`.
       `Config.resilience/property/analysis/domain` dans `domains/`. Régression
       non-ATL verte ; l'effet sur les tests ATL, qui passent `~controllable`
       via `Decision_Tree.filter_helper`, n'a pas été vérifié.)
-- [ ] **S3 Scellement transparent** (diagnostic c, h) :
+- [x] **S3 Scellement transparent** (diagnostic c, h) :
       `AP_PARTITION with module C = C and module N = N`, idem `AP_Affine`,
       `AP_OrdinalValued`, `Decision_Tree`. Prérequis de S4 (construire des
-      `samples` hors du module).
+      `samples` hors du module). (Fait le 12/10/2026 : `AP_Affine (B) :
+      FUNCTION with module B = B`, `AP_OrdinalValued`/`Decision_Tree` `with
+      module B = F.B`. Vérifié au typage : `B.C.t = O.C.t =
+      AP_LinearConstraint.t`, `AB.B.t = B.t`, `TSAP.B.t = P.t`. Les `t` des
+      partitions et des fonctions restent abstraits.)
 - [ ] **S4 Lois génériques sous `dune test`** (§3.2), instanciées sur B, O, P.
       Filet de sécurité de S5 et de tout ce qui suit.
 - [ ] **S5 Fiabiliser `env`** (diagnostic i) : bijection

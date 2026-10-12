@@ -66,23 +66,8 @@ module type CONSTRAINT = sig
   val negate : t -> t
   (** [negate t] returns the negation of [t].
 
-      CONTRACT — the negation must be EXACT, not an over-approximation:
-      [t ∧ negate t = ⊥] and [t ∨ negate t = ⊤]. A decision-tree node stores the
-      pair [(c, negate c)] and its two branches are meant to partition the state
-      space; an inexact negation makes the two branches either overlap (unsound
-      joins) or miss states (unsound coverage). [negate (negate t)] must also be
-      [t], up to normalisation.
-
-      This means the constraint domain has to be CLOSED UNDER COMPLEMENT, which
-      is a real restriction on what can be plugged in here:
-      - parity, congruence mod 2: [¬(x ≡ 0 [2])] is [x ≡ 1 [2]] — fine;
-      - congruence mod 3: [¬(x ≡ 0 [3])] is [x ≡ 1 ∨ x ≡ 2] — NOT a single
-        constraint, so such a domain cannot be used as a node constraint as is.
-        It needs either a disjunctive node type, or to be carried in a product
-        beside a complement-closed domain.
-
-      The type system cannot enforce any of this. The law is checked instead by
-      the domain test harness (see domains/todo.md §4.1). *)
+      A decision-tree node stores the pair [(c, negate c)] and its two branches are meant to partition the state
+      space. *)
 
   val print : Format.formatter -> t -> unit
 end

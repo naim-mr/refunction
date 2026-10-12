@@ -1,0 +1,10 @@
+; Domain law tests: one law functor per signature, instantiated on each domain.
+; Built only when alcotest is installed, so that `dune build` stays green
+; without it.
+
+(test
+ (name test_domains)
+ (build_if %{lib-available:alcotest})
+ (libraries domains alcotest qcheck-core)
+ (flags
+  (:standard -open Sig -open Utils -open Banal -open Frontend -open Apron)))
