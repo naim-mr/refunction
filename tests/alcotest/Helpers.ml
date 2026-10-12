@@ -3,8 +3,8 @@
    with the functions of each instance ([B.inner], [AP.zero], ...). *)
 
 open Domains
-open Typed_syntax
 open Abstract_syntax
+open Typed_syntax
 module C = AP_LinearConstraint.AP_LinearConstraint
 
 let mk_var id name =
@@ -31,6 +31,18 @@ let cons coeffs c : C.t =
     coeffs;
   Linexpr1.set_cst e (Coeff.s_of_int c);
   { cons = Lincons1.make e Lincons1.SUPEQ; env }
+
+(* Typed expressions, for the transfer functions. [itv a b] is the
+   non-deterministic constant [a, b]. *)
+let int_t = A_int (A_INTEGER, A_SIGNED)
+let var v : expr typed = (T_var v, int_t, extent_unknown)
+
+let itv a b : expr typed =
+  (T_int_const (Datatypes.Finite (Z.of_int a), Datatypes.Finite (Z.of_int b)), int_t, extent_unknown)
+
+let cst n = itv n n
+let bin op e1 e2 : expr typed = (T_binary (op, e1, e2), int_t, extent_unknown)
+let cmp op e1 e2 : expr typed = (T_binary (op, e1, e2), A_BOOL, extent_unknown)
 
 (* Runs a QCheck test as an Alcotest case, without qcheck-alcotest. *)
 let of_qcheck ?(speed = `Slow) (QCheck2.Test.Test cell as t) =

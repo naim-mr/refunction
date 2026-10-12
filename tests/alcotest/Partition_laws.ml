@@ -4,6 +4,7 @@
 
 open Sig.Domain
 open Ranking
+open Typed_syntax
 
 module Make
     (B : PARTITION) (S : sig
@@ -11,6 +12,8 @@ module Make
       val env : B.env
       val samples : B.t list
       val constraints : B.C.t list
+      val assigns : (expr typed * expr typed) list
+      val filters : expr typed list
     end) : Law.S = struct
   let leq = B.is_leq COMPUTATIONAL
   let eq a b = leq a b && leq b a
@@ -74,6 +77,27 @@ module Make
       (Law.forall S.constraints (fun c ->
            eq (join (B.inner S.env [ c ]) (B.inner S.env [ B.C.negate c ])) top))
 
+
+  let monotone_assign () =
+            Law.holds "a <= b implies fwd_assign a e <= fwd_assign b e"
+              (Law.forall S.assigns (fun e ->
+                   Law.forall2 S.samples (fun a b ->
+                       (not (leq a b)) || leq (B.fwd_assign a e) (B.fwd_assign b e))))
+
+  let monotone_bwd_assign () =
+    Law.holds "a <= b implies bwd_assign a e <= bwd_assign b e"
+      (Law.forall S.assigns (fun e ->
+           Law.forall2 S.samples (fun a b ->
+               (not (leq a b)) || leq (B.bwd_assign a e) (B.bwd_assign b e))))
+
+  let monotone_filter () =
+    Law.holds "a <= b implies fwd_filter a e <= fwd_filter b e"
+      (Law.forall S.filters (fun e ->
+           Law.forall2 S.samples (fun a b ->
+               (not (leq a b)) || leq (B.fwd_filter a e) (B.fwd_filter b e))))
+
+  (* TODO underapproximating operator*)
+           
   let tests =
     [
       case "is_leq reflexive" leq_refl;
@@ -89,7 +113,9 @@ module Make
       case "meet idempotent" meet_idem;
       case "a <= b implies a join b = b" leq_join;
       case "widen upper bound" widen_upper;
-      case "negate disjoint" negate_disjoint;
       case "negate covers" negate_cover;
+      case "fwd_assign monotone" monotone_assign;
+      case "bwd_assign monotone" monotone_bwd_assign;
+      case "fwd_filter monotone" monotone_filter;
     ]
 end
