@@ -13,7 +13,7 @@ open Sig
 open Sig.Domain
 open AP_Partition
 
-module AP_Affine (B : AP_PARTITION) : FUNCTION = struct
+module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
   module B = B
   module N = B.N
 

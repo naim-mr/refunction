@@ -19,7 +19,8 @@ open Utils.Apron_utils
 
 (** Single partition of the domain of a ranking function represented by an APRON
     numerical abstract domain. *)
-module AP_Partition (N : AP_NUMERICAL) (C : AP_CONSTRAINT) : AP_PARTITION =
+module AP_Partition (N : AP_NUMERICAL) (C : AP_CONSTRAINT) :
+  AP_PARTITION with module C = C and module N = N =
 struct
   module C = C
   module N = N
@@ -610,36 +611,8 @@ struct
       | _ -> raise (Invalid_argument "Unsupported float")
     in
     let b1 = f manager b (e, t, ext) in
-    if !Config.resilience && N.kind = Polyhedra && false then
-      let env = env b in
-      let ap_env = ap_env env in
-      let p = to_apron_t b1 in
-      let box_constraints : C.t list =
-        List.concat_map
-          (fun (var : var) ->
-            let v = apron_of_var var in
-            let itv = Abstract1.bound_variable manager p v in
-            let inf = itv.Interval.inf in
-            let sup = itv.Interval.sup in
-            let lower =
-              if Scalar.is_infty inf = 0 then (
-                let e = Linexpr1.make ap_env in
-                Linexpr1.set_coeff e v (Coeff.s_of_int 1);
-                Linexpr1.set_cst e (Coeff.Scalar (Scalar.neg inf));
-                [ ({ cons = Lincons1.make e Lincons1.SUPEQ; env } : C.t) ])
-              else []
-            and upper =
-              if Scalar.is_infty sup = 0 then (
-                let e = Linexpr1.make ap_env in
-                Linexpr1.set_coeff e v (Coeff.s_of_int (-1));
-                Linexpr1.set_cst e (Coeff.Scalar sup);
-                [ ({ cons = Lincons1.make e Lincons1.SUPEQ; env } : C.t) ])
-              else []
-            in
-            lower @ upper)
-          (vars b1)
-      in
-      { b1 with constraints = b1.constraints @ box_constraints }
+    if controllable then
+      failwith "Implementation of controlled underapproximate filter ny"
     else b1
 
   let is_representable = N.is_representable

@@ -14,7 +14,7 @@ module AP_OrdinalValued
     (P : sig
       val ordmax : int
     end)
-    (F : FUNCTION) : FUNCTION = struct
+    (F : FUNCTION) : FUNCTION with module B = F.B = struct
   module B = F.B
 
   type rank = F.rank

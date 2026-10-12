@@ -98,7 +98,7 @@ l. 2035 est dans `vulnerable`, commenté) et `AP_OrdinalValued (F : FUNCTION)`.
         trancher `?controllable` / `split` / `is_representable` : les garder
         dans `PARTITION` en les documentant comme capacités d'analyse, ou les
         sortir dans une extension (`ATL_PARTITION`…). À décider avant de coder.
-- [ ] **S2 Sortir `Config` des domaines** (diagnostic e) : ce qui dépend de
+- [x] **S2 Sortir `Config` des domaines** (diagnostic e) : ce qui dépend de
       l'instance (polyèdres ou non) passe par `N` ; ce qui dépend de l'analyse
       (ATL, résilience) passe en paramètre explicite depuis l'itérateur.
       Ex. `AP_Partition.bwd_assign` : `if controllable &&
@@ -111,9 +111,13 @@ l. 2035 est dans `vulnerable`, commenté) et `AP_OrdinalValued (F : FUNCTION)`.
       `Config.property` (`AP_Affines.join_ranking`) ; la branche « boîte » de
       `AP_Partition.bwd_assign` ajoute à `b1` ses propres bornes, ce qui ne
       change pas sa valeur — à comprendre (forme de l'arbre ?) avant de
-      décider. Au
-      passage, trancher le `&& false` de `AP_Partition` l. 626 (code mort ou
-      à réactiver ?).
+      décider. (12/10/2026 : `AP_Partition.fwd_filter` — la branche morte
+      `!Config.resilience && … && false` qui ajoutait les bornes de boîte est
+      remplacée par `if controllable then failwith "… ny"` : le filtre
+      contrôlé sous-approximant n'est pas implémenté. Plus aucune lecture de
+      `Config.resilience/property/analysis/domain` dans `domains/`. Régression
+      non-ATL verte ; l'effet sur les tests ATL, qui passent `~controllable`
+      via `Decision_Tree.filter_helper`, n'a pas été vérifié.)
 - [ ] **S3 Scellement transparent** (diagnostic c, h) :
       `AP_PARTITION with module C = C and module N = N`, idem `AP_Affine`,
       `AP_OrdinalValued`, `Decision_Tree`. Prérequis de S4 (construire des

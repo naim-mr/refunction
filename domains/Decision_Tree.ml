@@ -28,7 +28,8 @@ open AP_Ordinals
     an auxiliary abstract domains for functions F, both parameterized by an
     auxiliary numerical abstract domain B. *)
 
-module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION = struct
+module Decision_Tree (F : FUNCTION) : RANKING_FUNCTION with module B = F.B =
+struct
   module B = F.B (* auxiliary parition abstract domain *)
   module C = B.C (* auxiliary constraints abstract domain *)
 
