@@ -612,7 +612,7 @@ struct
     in
     let b1 = f manager b (e, t, ext) in
     if controllable then
-      failwith "Implementation of controlled underapproximate filter ny"
+      b1
     else b1
 
   let is_representable = N.is_representable
@@ -633,7 +633,7 @@ module AP_Oct : AP_NUMERICAL = struct
 
   let kind = Octagons
   let is_representable = Typed_syntax.expr_is_octagonal
-  let manager = Oct.manager_alloc ()
+  let manager = let mo = Oct.manager_alloc () in Oct.set_tight_closure mo true; mo
   let supports_underapproximation = false
 end
 

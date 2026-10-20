@@ -1160,7 +1160,6 @@ struct
     let f_env = env.f_env in
     let pre = domain in
     let post = env.domain in
-    let e' : expr typed = snd e in
     let merge t1 t2 cs =
       let rec aux (t1, t2) cs =
         match (t1, t2) with

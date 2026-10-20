@@ -1,0 +1,3 @@
+module Left_projection (L:Partition) (R:Partition) = sig
+    val project : R.t -> L.t 
+end

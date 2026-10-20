@@ -536,7 +536,7 @@ let parse_file (f : string) : Typed_syntax.prog =
   let target = get_target_info (get_default_target_options ()) in
   let ctx = create_context "project" target in
   parse_file "clang" !Config.filename [ "-fbracket-depth=512" ] false false
-    false false ctx [];
+    false false ctx;
   let prj = link_project ctx in
   (* C_print.print_project stdout prj; *)
   let st = { input_vars = ref [] } in
