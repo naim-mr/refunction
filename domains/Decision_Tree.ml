@@ -1602,7 +1602,6 @@ struct
 
   (* NOTE: reset underapproximates the filter operation to guarantee soundness. 
      Currently this limits the set of supported domains to polyhedra *)
-
   let reset ?mask t e =
     let env = t.env in
     let t1 = t.tree in
@@ -1614,7 +1613,7 @@ struct
     in
     let expr, _, _ = e in
     let filter =
-      if B.is_representable expr then filter ~controllable:false
+      if B.is_representable expr then filter ~controllable:true
       else ubwd_filter ~controllable:false
     in
     let t2 =
