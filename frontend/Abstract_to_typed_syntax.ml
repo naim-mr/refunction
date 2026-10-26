@@ -179,6 +179,28 @@ let rec pure_expr env pre post (e, x) =
   | A_identifier s ->
       let v = get_var env s x in
       ((T_var v, v.var_typ, x), pre, post)
+  | A_INPUT (id, Some (("minf", _), ("inf", _))) ->
+      ((T_input (id, (MINF, INF)), A_int (A_INT, A_SIGNED), x), pre, post)
+  | A_INPUT (id, Some (("minf", _), (max, _))) ->
+      let i = Int.of_string max in
+      add_prog_literal i;
+      let t =
+        if Int.fits_int32 i then A_int (A_INT, A_SIGNED)
+        else if Int.fits_int64 i && Int.fits_int64 i then
+          A_int (A_LONG, A_SIGNED)
+        else A_int (A_INTEGER, A_SIGNED)
+      in
+      ((T_input (id, (MINF, Finite i)), t, x), pre, post)
+  | A_INPUT (id, Some ((min, _), ("inf", _))) ->
+      let i = Int.of_string min in
+      add_prog_literal i;
+      let t =
+        if Int.fits_int32 i then A_int (A_INT, A_SIGNED)
+        else if Int.fits_int64 i && Int.fits_int64 i then
+          A_int (A_LONG, A_SIGNED)
+        else A_int (A_INTEGER, A_SIGNED)
+      in
+      ((T_input (id, (Finite i, INF)), t, x), pre, post)
   | A_INPUT (id, Some ((min, _), (max, _))) ->
       let i1, i2 = (Int.of_string min, Int.of_string max) in
       add_prog_literal i1;
@@ -189,9 +211,7 @@ let rec pure_expr env pre post (e, x) =
           A_int (A_LONG, A_SIGNED)
         else A_int (A_INTEGER, A_SIGNED)
       in
-      ( (T_input (id, (Finite i1, Finite i2)), A_int (A_INT, A_SIGNED), x),
-        pre,
-        post )
+      ((T_input (id, (Finite i1, Finite i2)), t, x), pre, post)
   | A_INPUT (id, None) ->
       ((T_input (id, (MINF, INF)), A_int (A_INT, A_SIGNED), x), pre, post)
   | A_float_const s ->

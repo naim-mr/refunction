@@ -295,26 +295,32 @@ let rec convert_expr (st : state) ((kind, typ, _) : C_AST.expr) :
         if Array.length args = 1 then (Abstract_syntax.A_INPUT (id, None), H_INT)
         else (
           assert (Array.length args = 3);
+
           (* args.(0) is the agent-id string, so the bounds are args.(1)/args.(2).
              A bound is a numeric literal, possibly negated: in C a literal like
              -1 is parsed as a unary minus applied to 1, so we add that case and
              fold it back into a constant string, per bound. *)
           let const_str arg =
-            match convert_expr st arg with
-            | ( (Abstract_syntax.A_int_const s | Abstract_syntax.A_float_const s),
-                _ ) ->
-                s
-            | ( Abstract_syntax.A_unary
-                  ( Abstract_syntax.A_UNARY_MINUS,
-                    ( ( Abstract_syntax.A_int_const s
-                      | Abstract_syntax.A_float_const s ),
-                      _ ) ),
-                _ ) ->
-                "-" ^ s
-            | _ ->
-                raise
-                  (UnsupportedConversion
-                     "unexpected kind of arguments of input func")
+            match strip_cast arg with
+            | C_AST.E_string_literal ("-inf", _) -> "minf"
+            | C_AST.E_string_literal ("+inf", _) -> "inf"
+            | _ -> (
+                match convert_expr st arg with
+                | ( ( Abstract_syntax.A_int_const s
+                    | Abstract_syntax.A_float_const s ),
+                    _ ) ->
+                    s
+                | ( Abstract_syntax.A_unary
+                      ( Abstract_syntax.A_UNARY_MINUS,
+                        ( ( Abstract_syntax.A_int_const s
+                          | Abstract_syntax.A_float_const s ),
+                          _ ) ),
+                    _ ) ->
+                    "-" ^ s
+                | _ ->
+                    raise
+                      (UnsupportedConversion
+                         "unexpected kind of arguments of input func"))
           in
           let bound =
             ( const_str args.(1) |> attach_position,
