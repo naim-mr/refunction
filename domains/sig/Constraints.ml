@@ -66,8 +66,8 @@ module type CONSTRAINT = sig
   val negate : t -> t
   (** [negate t] returns the negation of [t].
 
-      A decision-tree node stores the pair [(c, negate c)] and its two branches are meant to partition the state
-      space. *)
+      A decision-tree node stores the pair [(c, negate c)] and its two branches
+      are meant to partition the state space. *)
 
   val print : Format.formatter -> t -> unit
 end
@@ -81,4 +81,18 @@ module type AP_CONSTRAINT = sig
   (** [expand t] splits an equality [e = 0] into the pair [e >= 0], [-e >= 0].
       Raises [Invalid_argument] if [t] is not an equality. Linear-specific: a
       generic constraint has no such splitting. *)
+
+  val shadow :
+    (Coeff.t -> Coeff.t -> Coeff.t) ->
+    env ->
+    t list ->
+    var ->
+    Scalar.t ->
+    Scalar.t ->
+    t list
+  (** [shadow k env t x inf sup] eliminates [x] from [t /\ inf <= x <= sup] by
+      Fourier-Motzkin: each pair [a.x + L >= 0], [-b.x + U >= 0] (a, b > 0)
+      yields [b.L + a.U + k a b >= 0]. [k = 0] gives the real shadow,
+      [k a b = -(a-1)(b-1)] the dark shadow of Pugh. Infinite bounds are
+      ignored. *)
 end

@@ -20,8 +20,7 @@ open Utils.Apron_utils
 (** Single partition of the domain of a ranking function represented by an APRON
     numerical abstract domain. *)
 module AP_Partition (N : AP_NUMERICAL) (C : AP_CONSTRAINT) :
-  AP_PARTITION with module C = C and module N = N =
-struct
+  AP_PARTITION with module C = C and module N = N = struct
   module C = C
   module N = N
   module BanalApron = Banal_apron_domain.ApronDomain (N)
@@ -444,42 +443,19 @@ struct
           in
           of_apron_t env b
         in
-        let b1 = f manager b (x, e) in
-        (* A-controlled assignment on polyhedra: dedicated treatment of the
-           redundant constraints. [controllable] is only set by the ATL
-           iterator. *)
+        (* A-controlled assignment on polyhedra: compute the dark shadow of Pugh *)
         if controllable && N.kind = Polyhedra then
-          let env = env b in
-          let ap_env = ap_env env in
-          let p = to_apron_t b1 in
-          let box_constraints : C.t list =
-            List.concat_map
-              (fun (var : var) ->
-                let v = apron_of_var var in
-                let itv = Abstract1.bound_variable manager p v in
-                let inf = itv.Interval.inf in
-                let sup = itv.Interval.sup in
-                let lower =
-                  if Scalar.is_infty inf = 0 then (
-                    let e = Linexpr1.make ap_env in
-                    Linexpr1.set_coeff e v (Coeff.s_of_int 1);
-                    Linexpr1.set_cst e (Coeff.Scalar (Scalar.neg inf));
-                    [ ({ cons = Lincons1.make e Lincons1.SUPEQ; env } : C.t) ])
-                  else []
-                and upper =
-                  if Scalar.is_infty sup = 0 then (
-                    let e = Linexpr1.make ap_env in
-                    Linexpr1.set_coeff e v (Coeff.s_of_int (-1));
-                    Linexpr1.set_cst e (Coeff.Scalar sup);
-                    [ ({ cons = Lincons1.make e Lincons1.SUPEQ; env } : C.t) ])
-                  else []
-                in
-                lower @ upper)
-              (vars b1)
-          in
-
-          { b1 with constraints = b1.constraints @ box_constraints }
-        else b1
+          match e with
+          | T_input (_, (inf, sup)), _, _ | T_int_const (inf, sup), _, _ ->
+              let inf = Intinf.to_apron inf in
+              let sup = Intinf.to_apron sup in
+              let one = Coeff.s_of_int 1 in
+              let dark a b =
+                Coeff.neg (mul_coeff (sub_coeff a one) (sub_coeff b one))
+              in
+              inner (env b) (C.shadow dark (env b) (conjunction b) x inf sup)
+          | _ -> f manager b (x, e)
+        else f manager b (x, e)
     | _ -> raise (Invalid_argument "bwd_assign: unexpected lvalue")
 
   let ubwd_filter (t : t) (e : expr typed) : t =
@@ -611,9 +587,7 @@ struct
       | _ -> raise (Invalid_argument "Unsupported float")
     in
     let b1 = f manager b (e, t, ext) in
-    if controllable then
-      b1
-    else b1
+    if controllable then b1 else b1
 
   let is_representable = N.is_representable
   (**)
@@ -633,7 +607,12 @@ module AP_Oct : AP_NUMERICAL = struct
 
   let kind = Octagons
   let is_representable = Typed_syntax.expr_is_octagonal
-  let manager = let mo = Oct.manager_alloc () in Oct.set_tight_closure mo true; mo
+
+  let manager =
+    let mo = Oct.manager_alloc () in
+    Oct.set_tight_closure mo true;
+    mo
+
   let supports_underapproximation = false
 end
 

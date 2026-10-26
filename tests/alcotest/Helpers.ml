@@ -38,7 +38,9 @@ let int_t = A_int (A_INTEGER, A_SIGNED)
 let var v : expr typed = (T_var v, int_t, extent_unknown)
 
 let itv a b : expr typed =
-  (T_int_const (Datatypes.Finite (Z.of_int a), Datatypes.Finite (Z.of_int b)), int_t, extent_unknown)
+  ( T_int_const (Datatypes.Finite (Z.of_int a), Datatypes.Finite (Z.of_int b)),
+    int_t,
+    extent_unknown )
 
 let cst n = itv n n
 let bin op e1 e2 : expr typed = (T_binary (op, e1, e2), int_t, extent_unknown)

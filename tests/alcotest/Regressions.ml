@@ -18,5 +18,7 @@ let extend_slope () =
   Law.holds "f = 0 on x = 0" (AP.is_eq b1 f zero);
   Law.holds "f = 1 on x = 3" (AP.is_eq b2 f one)
 
-let tests = [ Law.case "affine/poly" "extend keeps the slope (# coefficient)" extend_slope ]
- 
+let tests =
+  [
+    Law.case "affine/poly" "extend keeps the slope (# coefficient)" extend_slope;
+  ]

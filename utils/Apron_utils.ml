@@ -109,6 +109,8 @@ let mul_coeff c1 c2 =
            (smin x1 (smin x2 (smin x3 x4)))
            (smax x1 (smax x2 (smax x3 x4))))
 
+let sub_coeff c1 c2 = add_coeff c1 (mul_coeff c2 (Coeff.s_of_int (-1)))
+
 let inv_scalar = function
   | Scalar.Float c -> Scalar.Float (1. /. c)
   | Scalar.Mpqf f -> Scalar.Mpqf (Mpqf.inv f)

@@ -7,7 +7,8 @@ open Ranking
 open Typed_syntax
 
 module Make
-    (B : PARTITION) (S : sig
+    (B : PARTITION)
+    (S : sig
       val name : string
       val env : B.env
       val samples : B.t list
@@ -22,12 +23,17 @@ module Make
   let case = Law.case S.name
   let top = B.top S.env
   let bot = B.bot S.env
-
   let leq_refl () = Law.holds "a <= a" (Law.forall S.samples (fun a -> leq a a))
   let bot_is_bot () = Law.holds "is_bot bot" (B.is_bot bot)
-  let bot_least () = Law.holds "bot <= a" (Law.forall S.samples (fun a -> leq bot a))
-  let top_greatest () = Law.holds "a <= top" (Law.forall S.samples (fun a -> leq a top))
-  let inner_empty () = Law.holds "inner env [] = top" (eq (B.inner S.env []) top)
+
+  let bot_least () =
+    Law.holds "bot <= a" (Law.forall S.samples (fun a -> leq bot a))
+
+  let top_greatest () =
+    Law.holds "a <= top" (Law.forall S.samples (fun a -> leq a top))
+
+  let inner_empty () =
+    Law.holds "inner env [] = top" (eq (B.inner S.env []) top)
 
   let join_upper () =
     Law.holds "a, b <= a ⊔ b"
@@ -77,12 +83,11 @@ module Make
       (Law.forall S.constraints (fun c ->
            eq (join (B.inner S.env [ c ]) (B.inner S.env [ B.C.negate c ])) top))
 
-
   let monotone_assign () =
-            Law.holds "a <= b implies fwd_assign a e <= fwd_assign b e"
-              (Law.forall S.assigns (fun e ->
-                   Law.forall2 S.samples (fun a b ->
-                       (not (leq a b)) || leq (B.fwd_assign a e) (B.fwd_assign b e))))
+    Law.holds "a <= b implies fwd_assign a e <= fwd_assign b e"
+      (Law.forall S.assigns (fun e ->
+           Law.forall2 S.samples (fun a b ->
+               (not (leq a b)) || leq (B.fwd_assign a e) (B.fwd_assign b e))))
 
   let monotone_bwd_assign () =
     Law.holds "a <= b implies bwd_assign a e <= bwd_assign b e"
@@ -97,7 +102,7 @@ module Make
                (not (leq a b)) || leq (B.fwd_filter a e) (B.fwd_filter b e))))
 
   (* TODO underapproximating operator*)
-           
+
   let tests =
     [
       case "is_leq reflexive" leq_refl;

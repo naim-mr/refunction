@@ -5,7 +5,8 @@
 open Ranking
 
 module Make
-    (F : FUNCTION) (S : sig
+    (F : FUNCTION)
+    (S : sig
       val name : string
       val env : F.env
       val support : F.B.t
@@ -19,7 +20,9 @@ module Make
     Law.holds "is_bot bot, is_top top"
       (F.is_bot (F.bot S.env) && F.is_top (F.top S.env))
 
-  let zero_defined () = Law.holds "defined (zero env)" (F.defined (F.zero S.env))
+  let zero_defined () =
+    Law.holds "defined (zero env)" (F.defined (F.zero S.env))
+
   let eq_refl () = Law.holds "f = f" (Law.forall defined (fun f -> eq f f))
 
   let eq_sym () =
@@ -39,7 +42,8 @@ module Make
       (Law.forall defined (fun f -> not (eq (F.successor f) f)))
 
   let reinit_bot () =
-    Law.holds "reinit f is bot" (Law.forall S.samples (fun f -> F.is_bot (F.reinit f)))
+    Law.holds "reinit f is bot"
+      (Law.forall S.samples (fun f -> F.is_bot (F.reinit f)))
 
   (* Order and join, per kind. On two defined functions [is_leq] is the
      pointwise order on the support whatever the kind; the kind only places
@@ -93,7 +97,8 @@ module Make
     Law.holds "f ⊔c g <= f, g (pointwise, defined f g)"
       (Law.forall2 defined (fun f g ->
            let j = F.join ~controllable:true RESILIENCE S.support f g in
-           (not (F.defined j)) || (leq COMPUTATIONAL j f && leq COMPUTATIONAL j g)))
+           (not (F.defined j))
+           || (leq COMPUTATIONAL j f && leq COMPUTATIONAL j g)))
 
   (* As for partitions, the second argument of widen is above the first. *)
   let widen_upper () =
@@ -120,17 +125,17 @@ module Make
     @ per_kind "join commutative" join_comm
     @ per_kind "join idempotent" join_idem
     @ [
-      case "is_leq reflexive" leq_refl;
-      case "is_leq transitive" leq_trans;
-      case "controllable join lower bound" join_controllable_lower;
-      case "widen upper bound" widen_upper;
-      case "bot and top" bot_top;
-      case "zero defined" zero_defined;
-      case "is_eq reflexive" eq_refl;
-      case "is_eq symmetric" eq_sym;
-      case "predecessor after successor" pred_succ;
-      case "successor after predecessor" succ_pred;
-      case "successor changes f" succ_differs;
-      case "reinit is bot" reinit_bot;
-    ]
+        case "is_leq reflexive" leq_refl;
+        case "is_leq transitive" leq_trans;
+        case "controllable join lower bound" join_controllable_lower;
+        case "widen upper bound" widen_upper;
+        case "bot and top" bot_top;
+        case "zero defined" zero_defined;
+        case "is_eq reflexive" eq_refl;
+        case "is_eq symmetric" eq_sym;
+        case "predecessor after successor" pred_succ;
+        case "successor after predecessor" succ_pred;
+        case "successor changes f" succ_differs;
+        case "reinit is bot" reinit_bot;
+      ]
 end

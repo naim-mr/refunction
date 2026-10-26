@@ -3,7 +3,8 @@
 open Constraints
 
 module Make
-    (C : CONSTRAINT) (S : sig
+    (C : CONSTRAINT)
+    (S : sig
       val name : string
       val env : C.env
       val samples : C.t list
@@ -12,18 +13,19 @@ module Make
   let sign n = compare n 0
 
   let compare_refl () =
-    Law.holds "compare c c = 0" (Law.forall S.samples (fun c -> C.compare c c = 0))
+    Law.holds "compare c c = 0"
+      (Law.forall S.samples (fun c -> C.compare c c = 0))
 
   let compare_antisym () =
     Law.holds "sign (compare a b) = - sign (compare b a)"
       (Law.forall2 S.samples (fun a b ->
-           sign (C.compare a b) = - sign (C.compare b a)))
+           sign (C.compare a b) = -sign (C.compare b a)))
 
   let compare_trans () =
     Law.holds "a <= b and b <= c imply a <= c"
       (Law.forall2 S.samples (fun a b ->
            Law.forall S.samples (fun c ->
-               not (C.compare a b <= 0 && C.compare b c <= 0)
+               (not (C.compare a b <= 0 && C.compare b c <= 0))
                || C.compare a c <= 0)))
 
   let is_eq_compare () =
@@ -50,10 +52,13 @@ module Make
     Law.holds "is_eq a b implies similar a b"
       (Law.forall2 S.samples (fun a b -> (not (C.is_eq a b)) || C.similar a b))
 
-  let unsat_is_bot () = Law.holds "is_bot (make_unsat env)" (C.is_bot (C.make_unsat S.env))
+  let unsat_is_bot () =
+    Law.holds "is_bot (make_unsat env)" (C.is_bot (C.make_unsat S.env))
 
   let print_total () =
-    Law.forall S.samples (fun c -> ignore (Format.asprintf "%a" C.print c); true)
+    Law.forall S.samples (fun c ->
+        ignore (Format.asprintf "%a" C.print c);
+        true)
     |> Law.holds "print does not raise"
 
   let tests =

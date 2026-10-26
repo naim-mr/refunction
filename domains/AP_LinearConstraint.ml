@@ -178,6 +178,50 @@ module AP_LinearConstraint : AP_CONSTRAINT = struct
     | Lincons1.DISEQ -> raise (Invalid_argument "DISEQ")
     | Lincons1.EQMOD _ -> raise (Invalid_argument "EQMOD")
 
+  let shadow (k : Coeff.t -> Coeff.t -> Coeff.t) env t x inf sup =
+    let vx = apron_of_var x in
+    let cx c = Lincons1.get_coeff c.cons vx in
+    (* bounds of the input: x - inf >= 0 and sup - x >= 0, when finite *)
+    let bound coef cst =
+      let e = Linexpr1.make env.ap_env in
+      Linexpr1.set_coeff e vx (Coeff.s_of_int coef);
+      Linexpr1.set_cst e (Coeff.Scalar cst);
+      { cons = Lincons1.make e Lincons1.SUPEQ; env }
+    in
+    let t =
+      (if Scalar.is_infty inf = 0 then [ bound 1 (Scalar.neg inf) ] else [])
+      @ (if Scalar.is_infty sup = 0 then [ bound (-1) sup ] else [])
+      @ t
+    in
+    let with_x, others = List.partition (var x) t in
+    let lows, ups =
+      List.partition (fun c -> Coeff.cmp (cx c) (Coeff.s_of_int 0) > 0) with_x
+    in
+    let combine l u =
+      let a = cx l and b = Coeff.neg (cx u) in
+      (* a, b > 0 *)
+      let e = Linexpr1.make env.ap_env in
+      (* fresh, no sharing *)
+      let add c coef v =
+        Linexpr1.set_coeff e v
+          (add_coeff (Linexpr1.get_coeff e v) (mul_coeff coef c))
+      in
+      Lincons1.iter (fun c v -> add c b v) l.cons;
+      (* b·L *)
+      Lincons1.iter (fun c v -> add c a v) u.cons;
+      (* a·U *)
+      Linexpr1.set_coeff e vx (Coeff.s_of_int 0);
+      Linexpr1.set_cst e
+        (add_coeff
+           (add_coeff
+              (mul_coeff b (Lincons1.get_cst l.cons))
+              (mul_coeff a (Lincons1.get_cst u.cons)))
+           (k a b));
+      (* dark: −(a−1)(b−1)/ real: 0 *)
+      { cons = Lincons1.make e Lincons1.SUPEQ; env }
+    in
+    others @ List.concat_map (fun l -> List.map (combine l) ups) lows
+
   let print fmt t =
     let c = t.cons in
     let vars = t.env.vars in

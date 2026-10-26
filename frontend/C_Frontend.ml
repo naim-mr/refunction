@@ -548,7 +548,7 @@ let parse_file (f : string) : Typed_syntax.prog =
     prj.proj_funcs |> C_AST.StringMap.bindings
     |> List.map (fun (_, f) -> f)
     |> List.filter (fun f ->
-           not (StringSet.mem C_AST.(f.func_org_name) skip_funcs))
+        not (StringSet.mem C_AST.(f.func_org_name) skip_funcs))
     |> List.filter (fun f -> C_AST.(f.func_org_name <> "main"))
     |> List.filter_map (convert_func st)
     |> List.map attach_position
@@ -576,19 +576,19 @@ let parse_file (f : string) : Typed_syntax.prog =
        itself still raises, so an unsupported type in analysed code is not
        silently swallowed. *)
     |> List.filter (fun var ->
-           match C_AST.(var.var_kind) with
-           | C_AST.Variable_extern -> (
-               try
-                 ignore (var_typ var);
-                 true
-               with UnsupportedFeature _ | UnsupportedConversion _ -> false)
-           | _ -> true)
+        match C_AST.(var.var_kind) with
+        | C_AST.Variable_extern -> (
+            try
+              ignore (var_typ var);
+              true
+            with UnsupportedFeature _ | UnsupportedConversion _ -> false)
+        | _ -> true)
     |> List.map (fun var ->
-           Abstract_syntax.A_global
-             ( ( var_typ var |> attach_position,
-                 [ (var_name var |> attach_position, var_init_expr st var) ] )
-               |> attach_position,
-               Abstract_syntax.A_VARIABLE ))
+        Abstract_syntax.A_global
+          ( ( var_typ var |> attach_position,
+              [ (var_name var |> attach_position, var_init_expr st var) ] )
+            |> attach_position,
+            Abstract_syntax.A_VARIABLE ))
   in
   let input_decl =
     List.map
