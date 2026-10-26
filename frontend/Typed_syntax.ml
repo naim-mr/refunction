@@ -454,69 +454,83 @@ let rec neg_bexp (b, t, x) =
   | T_unary (A_NOT, e) -> e
   | _ -> raise (Invalid_argument "Unexpected rvalue")
 
-let is_var e = match e with T_var _ -> true | _ -> false
-
-let is_var2 e1 e2 =
-  match (e1, e2) with T_var _, T_var _ -> true | _, _ -> false
-
-let rec expr_is_linear e =
-  match e with
-  | T_unary (op, (e, _, _)) -> expr_is_linear e
-  | T_binary (op, (e1, _, _), (e2, _, _)) -> (
-      match op with
-      | A_MULTIPLY | A_MODULO | A_DIVIDE ->
-          expr_is_linear e1 && expr_is_linear e2 && not (is_var2 e1 e2)
-      | _ -> expr_is_linear e1 && expr_is_linear e2)
-  | _ -> true
-
-(* [unit_vars e] returns the variables of the arithmetic expression [e] with
-   their sign, when [e] is a sum of constants and of variables with coefficient
-   +1 or -1, each variable occurring once; [None] otherwise. *)
-   let rec unit_vars e =
-    let combine s (e1, _, _) (e2, _, _) =
-      match (unit_vars e1, unit_vars e2) with
-      | Some l1, Some l2 ->
-          let l2 = List.map (fun (v, k) -> (v, s * k)) l2 in
-          let mem (v, _) = List.exists (fun (w, _) -> w.var_id = v.var_id) l1 in
-          if List.exists mem l2 then None else Some (l1 @ l2)
-      | _ -> None
-    in
-    match e with
-    | T_int_const _ -> Some []
-    | T_var v -> Some [ (v, 1) ]
-    | T_unary (A_UNARY_PLUS, (e, _, _)) -> unit_vars e
-    | T_unary (A_UNARY_MINUS, (e, _, _)) ->
-        Option.map (List.map (fun (v, k) -> (v, -k))) (unit_vars e)
-    | T_binary (A_PLUS, e1, e2) -> combine 1 e1 e2
-    | T_binary (A_MINUS, e1, e2) -> combine (-1) e1 e2
+(* [lin_vars e] returns the integer coefficients of the variables of the
+   arithmetic expression [e] when [e] is linear: constants (possibly
+   non-deterministic or unbounded: [a,b], input, nondet_), variables, + and -,
+   and multiplication by a finite singleton constant. Null coefficients are
+   dropped. [None] otherwise: product of variables, interval coefficient, and
+   / or % (integer division rounds, so it is not exact). *)
+let rec lin_vars e : (var * Int.t) list option =
+  let scale c = List.map (fun (v, k) -> (v, Int.mul c k)) in
+  let add acc (v, k) =
+    match List.partition (fun (w, _) -> Int.equal w.var_id v.var_id) acc with
+    | [ (_, k') ], rest ->
+        let s = Int.add k k' in
+        if Int.equal s Int.zero then rest else (v, s) :: rest
+    | _, rest -> (v, k) :: rest
+  in
+  let const = function
+    | T_int_const (Finite a, Finite b) when Int.equal a b -> Some a
     | _ -> None
-  
-  let at_most n = function Some l -> List.length l <= n | None -> false 
-
-let rec expr_is_univariate e =
+  in
   match e with
-  | T_unary (op, (e, _, _)) -> expr_is_univariate e
-  | T_binary (op, (e1, _, _), (e2, _, _)) ->
-      expr_is_univariate e1 && expr_is_univariate e2 && not (is_var2 e1 e2)
-  | _ -> true
+  | T_int_const _ | T_input _ | T_bool_const _ -> Some []
+  | T_var v when String.starts_with ~prefix:"nondet_" v.var_name -> Some []
+  | T_var v -> Some [ (v, Int.one) ]
+  | T_unary (A_UNARY_PLUS, (e, _, _)) -> lin_vars e
+  | T_unary (A_UNARY_MINUS, (e, _, _)) ->
+      Option.map (scale Int.minus_one) (lin_vars e)
+  | T_binary (((A_PLUS | A_MINUS) as op), (e1, _, _), (e2, _, _)) -> (
+      match (lin_vars e1, lin_vars e2) with
+      | Some l1, Some l2 ->
+          let l2 = if op = A_PLUS then l2 else scale Int.minus_one l2 in
+          Some (List.fold_left add l1 l2)
+      | _ -> None)
+  | T_binary (A_MULTIPLY, (e1, _, _), (e2, _, _)) -> (
+      match (const e1, const e2) with
+      | Some c, _ -> Option.map (scale c) (lin_vars e2)
+      | _, Some c -> Option.map (scale c) (lin_vars e1)
+      | _ -> None)
+  | _ -> None
 
-(* [expr_is_octagonal e] tests if [e] fits the octagon domain: a condition
-   whose sides differ by at most two variables of coefficient +1/-1, or an
-   arithmetic expression with at most one such variable (so that [x := e] is
-   octagonal). *)
-  let rec expr_is_octagonal e =
+let at_most n = function Some l -> List.length l <= n | None -> false
+
+let unit_coeffs = function
+  | Some l -> List.for_all (fun (_, k) -> Int.equal (Int.abs k) Int.one) l
+  | None -> false
+
+(* [representable ~cmp ~assign e] follows the decomposition of
+   [Decision_Tree.filter_helper]: ==, !=, !, && and || are handled by the
+   decision tree (meet, join, negation), so a guard is exact when each
+   comparison [e1 op e2] is, tested by [cmp] on [e1 - e2]. Any other
+   expression is the right-hand side of an assignment, tested by [assign]. *)
+let rec representable ~cmp ~assign e =
   match e with
   | T_bool_const _ -> true
-  | T_unary (A_NOT, (e, _, _)) -> expr_is_octagonal e
+  | T_unary (A_NOT, (e, _, _)) -> representable ~cmp ~assign e
   | T_binary ((A_AND | A_OR), (e1, _, _), (e2, _, _)) ->
-      expr_is_octagonal e1 && expr_is_octagonal e2
+      representable ~cmp ~assign e1 && representable ~cmp ~assign e2
   | T_binary
       ( ( A_EQUAL | A_NOT_EQUAL | A_LESS | A_LESS_EQUAL | A_GREATER
         | A_GREATER_EQUAL ),
         e1,
         e2 ) ->
-      at_most 2 (unit_vars (T_binary (A_MINUS, e1, e2)))
-  | e -> at_most 1 (unit_vars e)
+      cmp (lin_vars (T_binary (A_MINUS, e1, e2)))
+  | e -> assign (lin_vars e)
+
+(* Boxes: a comparison on one variable; x := a*y + b is exact backward. *)
+let expr_is_univariate = representable ~cmp:(at_most 1) ~assign:(at_most 1)
+
+(* Octagons: a comparison on one variable with any coefficient (APRON derives
+   the unary bound, rounded by the tight closure), or on at most two variables
+   of coefficient +1/-1; x := +/-y + b. *)
+let expr_is_octagonal =
+  representable
+    ~cmp:(fun l -> at_most 1 l || (at_most 2 l && unit_coeffs l))
+    ~assign:(fun l -> at_most 1 l && unit_coeffs l)
+
+(* Polyhedra: any linear comparison or assignment. *)
+let expr_is_linear = representable ~cmp:Option.is_some ~assign:Option.is_some
 
 (************************************************************************)
 (* MISC *)
