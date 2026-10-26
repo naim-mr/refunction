@@ -469,6 +469,30 @@ let rec expr_is_linear e =
       | _ -> expr_is_linear e1 && expr_is_linear e2)
   | _ -> true
 
+(* [unit_vars e] returns the variables of the arithmetic expression [e] with
+   their sign, when [e] is a sum of constants and of variables with coefficient
+   +1 or -1, each variable occurring once; [None] otherwise. *)
+   let rec unit_vars e =
+    let combine s (e1, _, _) (e2, _, _) =
+      match (unit_vars e1, unit_vars e2) with
+      | Some l1, Some l2 ->
+          let l2 = List.map (fun (v, k) -> (v, s * k)) l2 in
+          let mem (v, _) = List.exists (fun (w, _) -> w.var_id = v.var_id) l1 in
+          if List.exists mem l2 then None else Some (l1 @ l2)
+      | _ -> None
+    in
+    match e with
+    | T_int_const _ -> Some []
+    | T_var v -> Some [ (v, 1) ]
+    | T_unary (A_UNARY_PLUS, (e, _, _)) -> unit_vars e
+    | T_unary (A_UNARY_MINUS, (e, _, _)) ->
+        Option.map (List.map (fun (v, k) -> (v, -k))) (unit_vars e)
+    | T_binary (A_PLUS, e1, e2) -> combine 1 e1 e2
+    | T_binary (A_MINUS, e1, e2) -> combine (-1) e1 e2
+    | _ -> None
+  
+  let at_most n = function Some l -> List.length l <= n | None -> false 
+
 let rec expr_is_univariate e =
   match e with
   | T_unary (op, (e, _, _)) -> expr_is_univariate e
@@ -476,34 +500,11 @@ let rec expr_is_univariate e =
       expr_is_univariate e1 && expr_is_univariate e2 && not (is_var2 e1 e2)
   | _ -> true
 
-(* [unit_vars e] returns the variables of the arithmetic expression [e] with
-   their sign, when [e] is a sum of constants and of variables with coefficient
-   +1 or -1, each variable occurring once; [None] otherwise. *)
-let rec unit_vars e =
-  let combine s (e1, _, _) (e2, _, _) =
-    match (unit_vars e1, unit_vars e2) with
-    | Some l1, Some l2 ->
-        let l2 = List.map (fun (v, k) -> (v, s * k)) l2 in
-        let mem (v, _) = List.exists (fun (w, _) -> w.var_id = v.var_id) l1 in
-        if List.exists mem l2 then None else Some (l1 @ l2)
-    | _ -> None
-  in
-  match e with
-  | T_int_const _ -> Some []
-  | T_var v -> Some [ (v, 1) ]
-  | T_unary (A_UNARY_PLUS, (e, _, _)) -> unit_vars e
-  | T_unary (A_UNARY_MINUS, (e, _, _)) ->
-      Option.map (List.map (fun (v, k) -> (v, -k))) (unit_vars e)
-  | T_binary (A_PLUS, e1, e2) -> combine 1 e1 e2
-  | T_binary (A_MINUS, e1, e2) -> combine (-1) e1 e2
-  | _ -> None
-
 (* [expr_is_octagonal e] tests if [e] fits the octagon domain: a condition
    whose sides differ by at most two variables of coefficient +1/-1, or an
    arithmetic expression with at most one such variable (so that [x := e] is
    octagonal). *)
-let rec expr_is_octagonal e =
-  let at_most n = function Some l -> List.length l <= n | None -> false in
+  let rec expr_is_octagonal e =
   match e with
   | T_bool_const _ -> true
   | T_unary (A_NOT, (e, _, _)) -> expr_is_octagonal e

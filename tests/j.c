@@ -1,10 +1,8 @@
-
-void f1() {
-  while(1){};
-}
-
-
 int main(void) {
-  f1();
-  return 0;
+  int x, y, z;
+  x = input("car", 0, 1);          // coup contrôlé par A
+  if (x >= y) {
+    if (x <= z) { /* gagne : termine */ }
+    else { while (1) {} }
+  } else { while (1) {} }
 }

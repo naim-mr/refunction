@@ -1160,6 +1160,7 @@ struct
     let f_env = env.f_env in
     let pre = domain in
     let post = env.domain in
+    (* Join of the two subtree after assignement *)
     let merge t1 t2 cs =
       let rec aux (t1, t2) cs =
         match (t1, t2) with
@@ -1172,7 +1173,9 @@ struct
               | Some pre -> B.meet COMPUTATIONAL (B.inner f_env cs) pre
             in
             let joinType =
-              if underapprox && not !resilience then COMPUTATIONAL
+              if underapprox && not controllable then COMPUTATIONAL
+              else if controllable then 
+                RESILIENCE 
               else APPROXIMATION
             in
             Leaf (F.join ~controllable joinType b f1 f2)
@@ -1195,7 +1198,11 @@ struct
     let b_bwd_assign =
       if underapprox then B.ubwd_assign else B.bwd_assign ~controllable
     in
-    let rec aux t cs =
+    (** 
+      Universal assignement explore the tree and apply assignement locally to each node and leaf.
+      It is sound only when using a demonic semantics of non-determinism: forall x. (P and Q) <=> forall x P(x) and forall x 
+    *)
+    let rec universal_assignment t cs = 
       match t with
       | Bot -> Bot
       | Leaf f ->
@@ -1250,16 +1257,16 @@ struct
                         (c, nc))
                 in
                 match (c, nc) with
-                | [], [] -> merge (aux l cs) (aux r cs) cs
-                | [], [ y ] when C.is_bot y -> aux l cs
-                | [ x ], [] when C.is_bot x -> aux r cs
+                | [], [] -> merge (universal_assignment l cs) (universal_assignment r cs) cs
+                | [], [ y ] when C.is_bot y -> universal_assignment l cs
+                | [ x ], [] when C.is_bot x -> universal_assignment r cs
                 | [ x ], [ y ] when C.is_bot x && C.is_bot y ->
                     Leaf (F.bot f_env)
                 | [ x ], [ y ] ->
                     let nx = C.negate x in
                     let ny = C.negate y in
-                    let ll = aux l (x :: cs) in
-                    let rr = aux r (y :: cs) in
+                    let ll = universal_assignment l (x :: cs) in
+                    let rr = universal_assignment r (y :: cs) in
                     if C.is_eq nx y then sort_tree (Node ((x, nx), ll, rr))
                     else
                       merge
@@ -1267,21 +1274,99 @@ struct
                         (sort_tree (Node ((y, ny), rr, ll)))
                         cs
                 | _ ->
-                    let ll = aux l (c @ cs) in
-                    let rr = aux r (nc @ cs) in
+                    let ll = universal_assignment l (c @ cs) in
+                    let rr = universal_assignment r (nc @ cs) in
                     merge (sort_tree (build ll c)) (sort_tree (build rr nc)) cs
               else
-                let l = aux l (c :: cs) in
-                let r = aux r (nc :: cs) in
+                let l = universal_assignment l (c :: cs) in
+                let r = universal_assignment r (nc :: cs) in
                 Node ((c, nc), l, r)
           | _ ->
               raise
                 (Invalid_argument "Decision_Tree.bwd_assign: unexpected lvalue")
           )
     in
+    let rec existential_assignment t cs = 
+      match t with
+      | Bot -> [Bot]
+      | Leaf f ->
+          let cs = B.conjunction (b_bwd_assign (B.inner f_env cs) e) in 
+          if B.is_bot (B.inner f_env cs) then [Bot] 
+          else [sort_tree (build (Leaf (F.bwd_assign f e)) cs)]
+      | Node ((c, nc), l, r) -> (
+          match fst e with
+          | T_var variable, t, ext ->
+              if C.var variable c then
+                let filter_constraints cs dom =
+                  List.fold_left
+                    (fun cs c ->
+                      let b = B.inner f_env [ c ] in
+                      if
+                        (not (C.is_bot c))
+                        && (B.is_leq COMPUTATIONAL dom b
+                           || B.is_bot (B.meet COMPUTATIONAL dom b))
+                      then cs
+                      else c :: cs)
+                    [] cs
+                in
+                let c, nc =
+                  try CMap.find c !cache
+                  with Not_found -> (
+                    match (pre, post) with
+                    | Some pre, Some post ->
+                        let key = c in
+                        let c =
+                          B.conjunction
+                            (B.meet COMPUTATIONAL (B.inner f_env [ c ]) post)
+                        in
+                        let c = filter_constraints c pre in
+                        let nc =
+                          B.conjunction
+                               (B.meet COMPUTATIONAL (B.inner f_env [ nc ]) post)
+                        in
+                        let nc = filter_constraints nc pre in
+                        cache := CMap.add key (c, nc) !cache;
+                        (c, nc)
+                    | _ ->
+                        let key = c in
+                        let c =
+                          B.conjunction (B.inner f_env [ c ])
+                        in
+                        let nc =
+                          B.conjunction (B.inner f_env [ nc ])
+                        in
+                        cache := CMap.add key (c, nc) !cache;
+                        (c, nc))
+                in
+                (match c, nc with
+                | [], [] -> (existential_assignment l cs) @ (existential_assignment r cs)
+                | [], [ y ] when C.is_bot y -> existential_assignment l cs
+                | [ x ], [] when C.is_bot x -> existential_assignment r cs
+                | [ x ], [ y ] when C.is_bot x && C.is_bot y ->
+                    [Leaf (F.bot f_env)]
+                | _ ->
+                    let ll = existential_assignment l (c @ cs) in
+                    let rr = existential_assignment r (nc @ cs) in
+                    ll @ rr
+                )
+              else
+                let l = existential_assignment l (c :: cs) in
+                let r = existential_assignment r (nc :: cs) in
+                l @ r
+          | _ ->
+              raise
+                (Invalid_argument "Decision_Tree.bwd_assign: unexpected lvalue")
+          )
+    in
     let env = { env with domain = pre } in
-    { tree = sort_tree (aux t.tree []); env }
-
+    if controllable then 
+      (
+      let tree_list = (existential_assignment t.tree []) in
+      match tree_list with 
+      | [] -> t
+      | xs::q -> let tree = List.fold_left (fun acc t -> merge acc t []) xs q  in 
+      { tree; env })
+    else { tree = sort_tree (universal_assignment t.tree []); env }
   let bwd_assign ?domain ?(controllable = false) =
     assign ?domain controllable ~underapprox:false
 
@@ -1409,9 +1494,13 @@ struct
         and t2 = filter_helper controllable ?domain:pre ~underapprox t e2 in
         match op with
         | A_AND -> meet APPROXIMATION t1 t2
-        | A_OR -> join APPROXIMATION t1 t2
+        | A_OR -> 
+          let kind = if controllable then RESILIENCE else APPROXIMATION
+          in
+          join kind t1 t2
         | _ -> raise (Invalid_argument "This cases are impossible to reach"))
     | _ ->
+      (*  Case of: >=, >, <=, < *)
         let bp =
           match post with
           | None -> B.inner f_env []
