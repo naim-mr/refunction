@@ -1,0 +1,16 @@
+{
+    "analysis": "atl",
+    "property": "<car>F{exit:true}",
+    "players": [
+        "car"
+    ],
+    "domain": "polyhedra",
+    "precondition": "y == 0 && z == 0",
+    "description": "Precision guard for existential_assign (same program): from y = 0, z = 0 car wins by playing x = 0.",
+    "expected": {
+        "result": "TRUE",
+        "suff": 3,
+        "leaves": 10,
+        "time": 0.041
+    }
+}

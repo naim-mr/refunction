@@ -1,0 +1,16 @@
+{
+    "analysis": "atl",
+    "property": "<car>F{exit:true}",
+    "players": [
+        "car"
+    ],
+    "domain": "polyhedra",
+    "precondition": "y == 1 && z == 0",
+    "description": "Controlled non-deterministic assignment: the existential pre does not distribute over the conjunction of the path constraints. From y = 1, z = 0 no move of car wins (x = 0 fails x >= y, x = 1 fails x <= z); substituting each node constraint separately reported TRUE.",
+    "expected": {
+        "result": "UNKNOWN",
+        "suff": 3,
+        "leaves": 10,
+        "time": 0.04
+    }
+}
