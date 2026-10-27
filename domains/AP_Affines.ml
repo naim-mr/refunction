@@ -71,10 +71,12 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
   let defined f = match f.ranking with Fun _ -> true | _ -> false
   let is_top f = match f.ranking with Top -> true | _ -> false
 
-  (** [graph_constraints b fs]: constraints of [b] extended with [#], plus
-      [f - # typ 0] for each [(typ, f)] in [fs], and the extended environment *)
+  (** [graph_constraints b fs]: returns [b] (extended with [#]) plus
+      [f - # typ 0] for each [(Lincons0.typ, f)] in [fs], and the extended
+      environment *)
   let graph_constraints b fs =
     let env = ap_env_ext (B.env b) in
+    (* this might be unecessary to extend, each linexpr env is define with # *)
     let cs = B.ap_constraints b in
     let n = List.length cs in
     let a = Lincons1.array_make env (n + List.length fs) in
@@ -84,6 +86,7 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     List.iteri
       (fun i (typ, f) ->
         let f = Linexpr1.extend_environment f env in
+        (* copy the function f,  TODO: can we use references ?  *)
         Linexpr1.set_coeff f extra_dim (Coeff.s_of_int (-1));
         Lincons1.array_set a (n + i) (Lincons1.make f typ))
       fs;
@@ -94,8 +97,12 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     let a, env = graph_constraints b fs in
     Abstract1.of_lincons_array manager env a
 
-  (** [abstract1_of_hypograph f b]: abstraction of the hypograph of [f] on [b] *)
+  (** [abstract1_of_hypograph f b]: abstraction of the hypograph of [f] on [b]
+  *)
   let abstract1_of_hypograph f b = abstract1_of_graph b [ (Lincons1.SUPEQ, f) ]
+
+  (** [abstract1_unop op f b]: [op] applied to the hypographs of [f] on [b] *)
+  let abstract1_unop op f b = op @@ abstract1_of_hypograph f b
 
   (** [abstract1_binop op f1 f2 b]: [op] applied to the hypographs of [f1] and
       [f2] on [b] *)
@@ -114,15 +121,16 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     done;
     !f
 
-  (** [ranking_of_abstract1 p]: the affine function bounding [#] in [p], if [#]
-      has a single upper bound in [p] *)
-  let ranking_of_abstract1 p cmp =
+  (** [ranking_of_abstract1 p]: returns the affine function bounding [#] in [p],
+      if [#] has a single upper bound in [p], otherwise returns [Top] *)
+  let ranking_of_abstract1 p k =
     match
       filter_constraints (Abstract1.to_lincons_array manager p) extra_dim
     with
     | [ c ] ->
         let f = Lincons1.get_linexpr1 c in
         Linexpr1.set_coeff f extra_dim (Coeff.s_of_int 0);
+        k f;
         Fun f
     | _ -> Top
 
@@ -214,10 +222,11 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
                 Fun f)
               else Top (* otherwise *)
         | APPROXIMATION | COMPUTATIONAL ->
+            (* approximation and computational join: overapproximate max(f1,f2) *)
             let p = Abstract1.join manager p1 p2 in
             (* Lemma: hypo(f1) U hypo(f2) =  hypo(max(f1,f2) *)
             (* p = convex hull of hypo(f1) and  hypo(f2) overapproximating hypo(max(f1,f2)) *)
-            ranking_of_abstract1 p (fun n -> n = 1))
+            ranking_of_abstract1 p (fun _ -> ()))
     | _ -> Top
 
   let join k b f1 f2 =
@@ -234,7 +243,7 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     | Fun f1, Fun f2 ->
         let p = abstract1_binop (Abstract1.join manager) f1 f2 b in
         (* p = convex-hull *)
-        ranking_of_abstract1 p (fun n -> n = 1)
+        ranking_of_abstract1 p (fun _ -> ())
 
   let learn b f1 f2 =
     { ranking = learn_ranking b f1.ranking f2.ranking; env = f1.env }
@@ -247,7 +256,7 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     | Fun f1, Fun f2 ->
         let p = abstract1_binop (Abstract1.widening manager) f1 f2 b in
         (* p = widening *)
-        ranking_of_abstract1 p (fun n -> n = 1)
+        ranking_of_abstract1 p (fun _ -> ())
     | _ -> Top
 
   let widen ?(jokers = 0) b f1 f2 =
@@ -371,34 +380,27 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
   let plus b f1 f2 =
     { ranking = plus_ranking b f1.ranking f2.ranking; env = f1.env }
 
-  let bwd_assign_ranking f ((x, t, ext), e) =
+  let bwd_assign_ranking f benv ((x, t, ext), e) =
     match x with
     | T_var x -> (
         match f with
         | Fun f ->
             let env = Linexpr1.get_env f in
             let e = Texpr1.of_expr env (exp_to_apron e) in
-            let f = Linexpr1.copy f in
-            let a = Lincons1.array_make env 1 in
-            Linexpr1.set_coeff f extra_dim (Coeff.s_of_int (-1));
-            Lincons1.array_set a 0 (Lincons1.make f Lincons1.SUPEQ);
-            let p = Abstract1.of_lincons_array manager env a in
             let p =
-              Abstract1.substitute_texpr manager p (apron_of_var x) e None
+              abstract1_unop
+                (fun p ->
+                  Abstract1.substitute_texpr manager p (apron_of_var x) e None)
+                f (B.top benv)
             in
-            let a = Abstract1.to_lincons_array manager p in
-            if 1 = Lincons1.array_length a then (
-              let f = Lincons1.get_linexpr1 (Lincons1.array_get a 0) in
-              Linexpr1.set_coeff f extra_dim (Coeff.s_of_int 0);
-              Linexpr1.set_cst f
-                (add_coeff (Linexpr1.get_cst f) (Coeff.s_of_int 1));
-              Fun f)
-            else Top
+            ranking_of_abstract1 p (fun f ->
+                Linexpr1.set_cst f
+                  (add_coeff (Linexpr1.get_cst f) (Coeff.s_of_int 1)))
         | _ -> f)
     | _ -> raise (Invalid_argument "Box.fwd_assign: unexpected lvalue")
 
   let bwd_assign f (x, e) =
-    { ranking = bwd_assign_ranking f.ranking (x, e); env = f.env }
+    { ranking = bwd_assign_ranking f.ranking f.env (x, e); env = f.env }
 
   let filter f _ = successor f
 
