@@ -94,14 +94,14 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     let a, env = graph_constraints b fs in
     Abstract1.of_lincons_array manager env a
 
-  (** [abstract1_of_t f b]: abstraction of the hypograph of [f] on [b] *)
-  let abstract1_of_t f b = abstract1_of_graph b [ (Lincons1.SUPEQ, f) ]
+  (** [abstract1_of_hypograph f b]: abstraction of the hypograph of [f] on [b] *)
+  let abstract1_of_hypograph f b = abstract1_of_graph b [ (Lincons1.SUPEQ, f) ]
 
   (** [abstract1_binop op f1 f2 b]: [op] applied to the hypographs of [f1] and
       [f2] on [b] *)
   let abstract1_binop op f1 f2 b =
-    let p1 = abstract1_of_t f1 b in
-    let p2 = abstract1_of_t f2 b in
+    let p1 = abstract1_of_hypograph f1 b in
+    let p2 = abstract1_of_hypograph f2 b in
     op p1 p2
 
   (** [filter_constraints p var] returns the list of constraints in [p] where
@@ -197,8 +197,8 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
         | APPROXIMATION -> Top
         | COMPUTATIONAL -> Top)
     | Fun f1, Fun f2 -> (
-        let p1 = abstract1_of_t f1 b in
-        let p2 = abstract1_of_t f2 b in
+        let p1 = abstract1_of_hypograph f1 b in
+        let p2 = abstract1_of_hypograph f2 b in
         match k with
         | RESILIENCE ->
             (* resilience join: overapproximate min(f1,f2) *)
