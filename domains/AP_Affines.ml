@@ -71,8 +71,10 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
   let defined f = match f.ranking with Fun _ -> true | _ -> false
   let is_top f = match f.ranking with Top -> true | _ -> false
 
-  let hypograph f b env =
-    (* adding special variable # to environment of b *)
+  (** [hypograph f b env]: constraints of [b] extended to [# <= f], i.e. the
+      hypograph of [f] on [b] *)
+  let hypograph f b =
+    let env = ap_env_ext (B.env b) in
     let l = List.length (B.ap_constraints b) + 1 in
     (* l = |b| + 1 *)
     let a = Lincons1.array_make env l in
@@ -87,17 +89,20 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     (* adding constraint # <= f1 to a1 *)
     Linexpr1.set_coeff f extra_dim (Coeff.s_of_int (-1));
     Lincons1.array_set a (l - 1) (Lincons1.make f Lincons1.SUPEQ);
-    a
+    (a, env)
 
-  let abstract1_of_t f b env =
-    hypograph f b env |> Abstract1.of_lincons_array manager env
+  (** [abstract1_of_t f b env]: abstraction of the hypograph of [f] on [b] *)
+  let abstract1_of_t f b =
+    let a, env = hypograph f b in
+    Abstract1.of_lincons_array manager env a
 
+  (** [abstract1_binop op f1 f2 b]: [op] applied to the hypographs of [f1] and
+      [f2] on [b] *)
   let abstract1_binop op f1 f2 b =
-    let env = ap_env_ext (B.env b) in
     (* adding constraint # <= f2 to a2 *)
-    let p1 = abstract1_of_t f1 b env in
+    let p1 = abstract1_of_t f1 b in
     (* p1 = polyhedra represented by a1 *)
-    let p2 = abstract1_of_t f2 b env in
+    let p2 = abstract1_of_t f2 b in
     (* p2 = polyhedra represented by a2 *)
     op p1 p2
 
@@ -208,31 +213,26 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
         | APPROXIMATION -> Top
         | COMPUTATIONAL -> Top)
     | Fun f1, Fun f2 -> (
-        let env = ap_env_ext (B.env b) in
-        let p1 = abstract1_of_t f1 b env in
-        (* p1 = polyhedra represented by a1 *)
-        let p2 = abstract1_of_t f2 b env in
-        (* p2 = polyhedra represented by a2 *)
+        let p1 = abstract1_of_t f1 b in
+        let p2 = abstract1_of_t f2 b in
         match k with
         | RESILIENCE ->
+            (* resilience join: overapproximate min(f1,f2) *)
             if Abstract1.is_leq manager p1 p2 then Fun f1
             else if Abstract1.is_leq manager p2 p1 then Fun f2
             else
-              (* A-controlled statement: resilience join, which
-                 overapproximate min(f1,f2) *)
               let p = Abstract1.meet manager p1 p2 in
               (* p = hypo(f1) inter hypo(f2) =  hypo(min(f1,f2)) *)
               let itv = Abstract1.bound_variable manager p extra_dim in
               if Scalar.is_infty itv.sup = 0 then (
-                let f = Linexpr1.make (ap_env (B.env b)) in
-                Linexpr1.set_cst f (Coeff.Scalar itv.sup);
+                let f = Linexpr1.make (ap_env_ext (B.env b)) in
+                Linexpr1.set_cst f ((itv.sup  |> ceil_scalar |> Coeff.Scalar );
                 Fun f)
               else Top (* otherwise *)
         | APPROXIMATION | COMPUTATIONAL ->
             let p = Abstract1.join manager p1 p2 in
-            (* p = convex-hull *)
-            (* p = hypo(f1) U hypo(f2) =  hypo(max(f1,f2)) *)
-            (* these joins overapproximate max(f1,f2)*)
+            (* Lemma: hypo(f1) U hypo(f2) =  hypo(max(f1,f2) *)
+            (* p = convex hull of hypo(f1) and  hypo(f2) overapproximating hypo(max(f1,f2)) *)
             let p = Abstract1.to_lincons_array manager p in
             (* converting p into set of constraints *)
             let f = filter_constraints p extra_dim in
@@ -245,10 +245,7 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     | _ -> Top
 
   let join k b f1 f2 =
-    {
-      ranking = join_ranking k b f1.ranking f2.ranking;
-      env = f1.env;
-    }
+    { ranking = join_ranking k b f1.ranking f2.ranking; env = f1.env }
 
   let meet _ = failwith "nyi"
 

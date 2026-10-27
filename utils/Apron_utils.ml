@@ -114,11 +114,12 @@ let sub_coeff c1 c2 = add_coeff c1 (mul_coeff c2 (Coeff.s_of_int (-1)))
 let inv_scalar = function
   | Scalar.Float c -> Scalar.Float (1. /. c)
   | Scalar.Mpqf f -> Scalar.Mpqf (Mpqf.inv f)
-  | Scalar.Mpfrf f -> Scalar.Mpfrf (raise (Invalid_argument "invScalar: mpfrf"))
+  | Scalar.Mpfrf f ->
+      Scalar.Mpfrf (raise (Invalid_argument "inv_scalar: mpfrf"))
 
 let inv_coeff = function
   | Coeff.Scalar s -> Coeff.Scalar (inv_scalar s)
-  | _ -> raise (Invalid_argument "invCoeff: interval")
+  | _ -> raise (Invalid_argument "inv_coeff: interval")
 
 type sgn = Zero | Positive | Negative | Unknown
 
@@ -140,3 +141,10 @@ let sign_coeff = function
       else if ss < 0 then Negative
       else if si = 0 && ss = 0 then Zero
       else Unknown
+
+let rec ceil_scalar = function
+  | Scalar.Mpqf q ->
+      Scalar.of_mpqf
+        (Mpqf.of_mpz (Mpzf.cdiv_q (Mpqf.get_num q) (Mpqf.get_den q)))
+  | Scalar.Float x -> Scalar.of_float (Stdlib.ceil x)
+  | Scalar.Mpfrf r -> raise (Invalid_argument "ceil_scalar: mpfrf")
