@@ -385,8 +385,7 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     | T_var x -> (
         match f with
         | Fun f ->
-            let env = Linexpr1.get_env f in
-            let e = Texpr1.of_expr env (exp_to_apron e) in
+            let e = Texpr1.of_expr (ap_env_ext benv) (exp_to_apron e) in
             let p =
               abstract1_unop
                 (fun p ->
