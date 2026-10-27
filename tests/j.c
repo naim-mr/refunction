@@ -1,10 +1,17 @@
 int main(void) {
   int x, y, z;
-  z = input("car");
-  y = input("car");
-  x = input("car", 0, 1);          // coup contrôlé par A
-  if (3*x-y>=0) {
-    if (z -  3*x >= 0) { /* gagne : termine */ }
-    else { while (1) {} }
-  } else { while (1) {} }
+  //2x+4
+  y = input("env");
+  
+   if(y){
+    // -2x +9
+    while(x <= 0){
+      x = x + 3;
+    }
+  }else{
+    //x -3 = -2x+9 <=> 3x = 11 <=> x = 11/3
+    while(x >= 0){
+      x = x - 3;
+    }
+  }
 }

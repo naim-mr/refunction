@@ -226,7 +226,7 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
               let itv = Abstract1.bound_variable manager p extra_dim in
               if Scalar.is_infty itv.sup = 0 then (
                 let f = Linexpr1.make (ap_env_ext (B.env b)) in
-                Linexpr1.set_cst f ((itv.sup  |> ceil_scalar |> Coeff.Scalar );
+                Linexpr1.set_cst f (Coeff.Scalar (ceil_scalar itv.sup));
                 Fun f)
               else Top (* otherwise *)
         | APPROXIMATION | COMPUTATIONAL ->
