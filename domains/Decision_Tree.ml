@@ -1178,7 +1178,7 @@ struct
                 RESILIENCE 
               else APPROXIMATION
             in
-            Leaf (F.join ~controllable joinType b f1 f2)
+            Leaf (F.join joinType b f1 f2)
         | Node ((c1, nc1), l1, r1), Node ((c2, nc2), l2, r2) when C.is_eq c1 c2
           ->
             Node ((c1, nc1), aux (l1, l2) (c1 :: cs), aux (r1, r2) (nc1 :: cs))

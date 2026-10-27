@@ -96,7 +96,7 @@ module Make
     let open Sig.Domain in
     Law.holds "f ⊔c g <= f, g (pointwise, defined f g)"
       (Law.forall2 defined (fun f g ->
-           let j = F.join ~controllable:true RESILIENCE S.support f g in
+           let j = F.join RESILIENCE S.support f g in
            (not (F.defined j))
            || (leq COMPUTATIONAL j f && leq COMPUTATIONAL j g)))
 

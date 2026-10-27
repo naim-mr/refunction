@@ -150,12 +150,9 @@ module type FUNCTION = sig
   (** [domain_eq kind domain t1 t2] checks if the function [t1] is equal to [t2]
       on the given [domain] *)
 
-  val join : ?controllable:bool -> kind -> B.t -> t -> t -> t
-  (** [join ~controllable kind domain t1 t2] computes the join of the functions
-      [t1] and [t2] on the given [domain]. [controllable] is the control of the
-      statement being assigned: [true] (A-controlled) selects the resilience
-      join, [false] (Ā-controlled, default) the approximation join, which is
-      the sound default. *)
+  val join : kind -> B.t -> t -> t -> t
+  (** [join kind domain t1 t2] computes the join of the functions
+      [t1] and [t2] on the given [domain]. *)
 
   val widen : ?jokers:int -> B.t -> t -> t -> t
   (** [widening domain t1 t2] compute the widening of function [t1] and the
