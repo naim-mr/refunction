@@ -162,7 +162,10 @@ let parse_args () =
         "Set analysis configuration with a json file" );
       ( "-domain",
         Arg.String (fun s -> Config.domain := s),
-        "Numerical Abstract Domain used" );
+        "Numerical Abstract Domain used for the constraints of the decision tree" );
+      (* ( "-function",
+        Arg.String (fun s -> Config.fun_domain := s),
+        "Numerical Abstract Domain used for the leaves of the decisionfunctions" ); *)
       ( "-nowrap",
         Arg.Unit (fun _ -> Config.nowrap := true),
         "Refine the backward analysis" );
@@ -305,11 +308,22 @@ let run_analysis analysis_function program () =
     the command line is parsed, so that [ordmax] is given to the domain as a
     functor argument instead of being read from [Config] by the domain. *)
 let ranking_domain () : (module Sig.Ranking.RANKING_FUNCTION) =
+  let affine_num : (module Sig.Ranking.AP_NUMERICAL) =
+    match !fundom with
+    | "boxes" -> (module AP_Partition.AP_Box)
+    | "octagons" -> (module AP_Partition.AP_Oct)
+    | "polyhedra" -> (module AP_Partition.AP_Poly)
+    | _ ->
+        raise
+          (Invalid_argument
+             "Function numerical domain are boxes, octagons or polyhedra")
+  in
+  let module N = (val affine_num) in
   let affine : (module Sig.Ranking.FUNCTION) =
     match !domain with
-    | "boxes" -> (module AP_Affines.AB)
-    | "octagons" -> (module AP_Affines.AO)
-    | "polyhedra" -> (module AP_Affines.AP)
+    | "boxes" -> (module AP_Affines.Make (AP_Partition.B) (N))
+    | "octagons" -> (module AP_Affines.Make (AP_Partition.O) (N))
+    | "polyhedra" -> (module AP_Affines.Make (AP_Partition.P) (N))
     | _ -> raise (Invalid_argument "Unknown Abstract Domain")
   in
   let module F = (val affine) in

@@ -101,7 +101,7 @@ module type AP_PARTITION = sig
       of [ap_constraints]); the non-numerical components are left at top. *)
 end
 
-module type FUNCTION = sig
+module type FUNCTION  = sig
   module B : PARTITION
   (** [module B] defines the domain on which the function is defined. *)
 

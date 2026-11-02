@@ -2151,6 +2151,4 @@ struct
       j *)
 end
 
-module TSAB = Decision_Tree (AB)
-module TSAO = Decision_Tree (AO)
-module TSAP = Decision_Tree (AP)
+

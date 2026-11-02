@@ -7,7 +7,7 @@ open Helpers
 module B = AP_Partition.B
 module O = AP_Partition.O
 module P = AP_Partition.P
-module AP = AP_Affines.AP
+module AP = (AP_Affines.Make (AP_Partition.P) (AP_Partition.AP_Poly))
 
 (* Mixed cases: bounds on one variable, relational, redundant, unsatisfiable. *)
 let constraints =
@@ -179,40 +179,40 @@ module Ord (F : Ranking.FUNCTION) =
 
 module FL_AB =
   Function_instance
-    (AP_Affines.AB)
-    (struct
-      let name = "affine/box"
-      let env = env
-      let inner = B.inner env
-    end)
+    (AP_Affines.Make (AP_Partition.B) (AP_Partition.AP_Poly))
+       (struct
+         let name = "affine/box"
+         let env = env
+         let inner = B.inner env
+       end)
 
 module FL_AO =
   Function_instance
-    (AP_Affines.AO)
-    (struct
-      let name = "affine/oct"
-      let env = env
-      let inner = O.inner env
-    end)
+    (AP_Affines.Make (AP_Partition.O) (AP_Partition.AP_Poly))
+       (struct
+         let name = "affine/oct"
+         let env = env
+         let inner = O.inner env
+       end)
 
 module FL_AP =
   Function_instance
-    (AP)
-    (struct
-      let name = "affine/poly"
-      let env = env
-      let inner = P.inner env
-    end)
+    (AP_Affines.Make (AP_Partition.P) (AP_Partition.AP_Poly))
+       (struct
+         let name = "affine/poly"
+         let env = env
+         let inner = P.inner env
+       end)
 
 module FL_OAP =
   Function_instance
     (Ord
-       (AP))
-       (struct
-         let name = "ordinal/poly"
-         let env = env
-         let inner = P.inner env
-       end)
+       (AP_Affines.Make (AP_Partition.P) (AP_Partition.AP_Poly)))
+          (struct
+            let name = "ordinal/poly"
+            let env = env
+            let inner = P.inner env
+          end)
 
 let () =
   Alcotest.run "domains"

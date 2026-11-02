@@ -8,6 +8,7 @@ let refine = ref false
 let retrybwd = ref 5
 let analysis = ref "termination"
 let domain = ref "boxes"
+let fundom = ref "polyhedra"
 let filename = ref ""
 let main = ref "main"
 let minimal = ref false

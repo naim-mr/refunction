@@ -1,4 +1,4 @@
-(*
+  (*
    ********* Affine Ranking Functions Abstract Domain ************
    Copyright (C) 2012-2014 by Caterina Urban. All rights reserved.
 *)
@@ -13,13 +13,12 @@ open Sig
 open Sig.Domain
 open AP_Partition
 
-module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
-  module B = B
-  module N = B.N
 
+module Make (B : AP_PARTITION) (N: AP_NUMERICAL): FUNCTION with module B = B = struct
+  module B = B
+  module N = N
   (** [manager]: Apron manager used in the numerical domain [N]*)
   let manager : N.lib Manager.t = N.manager
-
   (** [rank]: [Bot] undefined function, [Top] undefined function due to
       precision losses, [Fun of Linexpr1.t] Affine function*)
   type rank = Bot | Fun of Linexpr1.t | Top
@@ -457,6 +456,7 @@ module AP_Affine (B : AP_PARTITION) : FUNCTION with module B = B = struct
     | Top -> Format.fprintf fmt "top"
 end
 
-module AB = AP_Affine (B)
-module AO = AP_Affine (O)
-module AP = AP_Affine (P)
+
+(* module AB = Make (B) (get_function_apnum ())
+module AO = AP_Affine (O) (get_function_apnum ())
+module AP = AP_Affine (P) (get_function_apnum ()) *)
