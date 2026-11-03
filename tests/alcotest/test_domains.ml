@@ -171,7 +171,7 @@ module Function_instance
     end)
 
 module Ord (F : Ranking.FUNCTION) =
-  AP_Ordinals.AP_OrdinalValued
+  Ordinals.AP_OrdinalValued
     (struct
       let ordmax = 2
     end)

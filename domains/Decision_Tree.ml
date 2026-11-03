@@ -21,7 +21,7 @@ open Sig.Domain
 open Sig
 open Sig.Ranking
 open Config
-open AP_Ordinals
+open Ordinals
 
 (** The ranking functions abstract domain is an abstract domain functor T. It is
     parameterized by an auxiliary abstract domain for linear constraints C, and

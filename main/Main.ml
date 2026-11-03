@@ -337,7 +337,7 @@ let ranking_domain () : (module Sig.Ranking.RANKING_FUNCTION) =
   let module F = (val affine) in
   let leaf : (module Sig.Ranking.FUNCTION) =
     if !ordinals then
-      (module AP_Ordinals.AP_OrdinalValued
+      (module Ordinals.AP_OrdinalValued
                 (struct
                   let ordmax = !Config.ordmax
                 end)
