@@ -162,7 +162,12 @@ let parse_args () =
         "Set analysis configuration with a json file" );
       ( "-domain",
         Arg.String (fun s -> Config.domain := s),
-        "Numerical Abstract Domain used for the constraints of the decision tree" );
+        "Numerical Abstract Domain used for the constraints of the decision \
+         tree" );
+      ( "-fundom",
+        Arg.String (fun s -> Config.fundom := s),
+        "Numerical Abstract Domain used for the function values of the \
+         decision tree" );
       (* ( "-function",
         Arg.String (fun s -> Config.fun_domain := s),
         "Numerical Abstract Domain used for the leaves of the decisionfunctions" ); *)
