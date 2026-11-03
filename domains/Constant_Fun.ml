@@ -13,7 +13,7 @@ module Make (B : PARTITION) : FUNCTION with module B = B = struct
   type dim = B.dim
 
   (** [rank]: [Bot] undefined function, [Top] undefined function due to
-      precision losses, [Fun of Z.t] Constant function*)
+      precision losses, [Fun of Z.t] Constant functions with Zarith integers *)
   type rank = Bot | Fun of Z.t | Top
 
   type t = { ranking : rank; env : env }
