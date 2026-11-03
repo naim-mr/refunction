@@ -1,17 +1,19 @@
-int main(void) {
-  int x, y, z;
-  //2x+4
-  y = input("env");
-  
-   if(y){
-    // -2x +9
-    while(x <= 0){
-      x = x + 3;
-    }
-  }else{
-    //x -3 = -2x+9 <=> 3x = 11 <=> x = 11/3
-    while(x >= 0){
-      x = x - 3;
-    }
+int main() {
+  int n;
+  int x;
+  int bug = 0;
+  int y = 0;  
+  if (n < 0){
+    return 0;
   }
+  x = n;
+  while (x > 0){
+    x = x - 1;  
+    y = y - 1;
+  }
+  if (n == y){
+    bug = 1;
+  }
+  return 0;
+
 }

@@ -19,7 +19,7 @@ open Utils.Apron_utils
 
 (** Single partition of the domain of a ranking function represented by an APRON
     numerical abstract domain. *)
-module AP_Partition (N : AP_NUMERICAL) (C : AP_CONSTRAINT) :
+module Make (N : AP_NUMERICAL) (C : AP_CONSTRAINT) :
   AP_PARTITION with module C = C and module N = N = struct
   module C = C
   module N = N
@@ -628,14 +628,14 @@ module AP_Poly : AP_NUMERICAL = struct
   let supports_underapproximation = true
 end
 
-module B = AP_Partition (AP_Box) (AP_LinearConstraint)
+module B = Make (AP_Box) (AP_LinearConstraint)
 (** Single partition of the domain of a ranking function represented by the
     boxes numerical abstract domain. *)
 
-module O = AP_Partition (AP_Oct) (AP_LinearConstraint)
+module O = Make (AP_Oct) (AP_LinearConstraint)
 (** Single partition of the domain of a ranking function represented by the
     octagons abstract domain. *)
 
-module P = AP_Partition (AP_Poly) (AP_LinearConstraint)
+module P = Make (AP_Poly) (AP_LinearConstraint)
 (** Single partition of the domain of a ranking function represented by the
     polyhedra abstract domain. *)

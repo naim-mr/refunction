@@ -321,14 +321,17 @@ let ranking_domain () : (module Sig.Ranking.RANKING_FUNCTION) =
     | _ ->
         raise
           (Invalid_argument
-             "Function numerical domain are boxes, octagons or polyhedra")
+             "Function numerical domain is either boxes, or octagons or polyhedra")
   in
   let module N = (val affine_num) in
   let affine : (module Sig.Ranking.FUNCTION) =
     match !domain with
-    | "boxes" -> (module AP_Affines.Make (AP_Partition.B) (N))
-    | "octagons" -> (module AP_Affines.Make (AP_Partition.O) (N))
-    | "polyhedra" -> (module AP_Affines.Make (AP_Partition.P) (N))
+    | "boxes" ->
+        (module Function.Make (AP_Affines.Affine_Ranking (AP_Partition.B) (N)))
+    | "octagons" ->
+        (module Function.Make (AP_Affines.Affine_Ranking (AP_Partition.O) (N)))
+    | "polyhedra" ->
+        (module Function.Make (AP_Affines.Affine_Ranking (AP_Partition.P) (N)))
     | _ -> raise (Invalid_argument "Unknown Abstract Domain")
   in
   let module F = (val affine) in

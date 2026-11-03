@@ -4,7 +4,7 @@
 open Domains
 open Helpers
 module P = AP_Partition.P
-module AP = AP_Affines.Make (P) (AP_Partition.AP_Poly)
+module AP = Function.Make (AP_Affines.Affine_Ranking (P) (AP_Partition.AP_Poly))
 
 (* Coefficient of # (AP_Affine): the hull of x = 0 ↦ 0 and x = 3 ↦ 1 is
    bounded by # <= x/3, which APRON returns as -3# + x >= 0; setting the
